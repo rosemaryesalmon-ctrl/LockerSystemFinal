@@ -1,36 +1,37 @@
 const express = require('express');
 const bodyParser = require('body-parser');
+const cors = require('cors');
+const { v4: uuidv4 } = require('uuid');
+const path = require('path');
 const app = express();
 
-const path = require('path');
+app.use(cors());
+app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, '../public')));
 
-// Middleware
-app.use(bodyParser.json());
-
-// Database connection setup (assumed already done)
 const db = require('../database');
 
-// User registration endpoint
+// --- User Registration ---
 app.post('/api/register', async (req, res) => {
-    const { username, password, email } = req.body;
-    const sql = 'INSERT INTO User (username, password, email) VALUES (?, ?, ?)';
+    const { name, email, phoneNumber, password } = req.body;
+    const sql = 'INSERT INTO User (userID, name, email, phoneNumber, password, role) VALUES (?, ?, ?, ?, ?, ?)';
     try {
-        await db.query(sql, [username, password, email]);
+        const userID = uuidv4();
+        await db.run(sql, [userID, name, email, phoneNumber, password, 'User']);
         res.status(201).send('User registered successfully.');
     } catch (error) {
         res.status(500).send('Database error: ' + error.message);
     }
 });
 
-// User login endpoint
+// --- User Login ---
 app.post('/api/login', async (req, res) => {
-    const { username, password } = req.body;
-    const sql = 'SELECT * FROM User WHERE username = ? AND password = ?';
+    const { email, password } = req.body;
+    const sql = 'SELECT * FROM User WHERE email = ? AND password = ?';
     try {
-        const [user] = await db.query(sql, [username, password]);
+        const user = await db.get(sql, [email, password]);
         if (user) {
-            res.status(200).send('Login successful.');
+            res.status(200).json({ id: user.userID, email: user.email });
         } else {
             res.status(401).send('Invalid credentials.');
         }
@@ -39,53 +40,53 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-// Retrieve lockers endpoint
+// --- Get All Lockers (grouped by location for frontend compatibility) ---
 app.get('/api/lockers', async (req, res) => {
-    const sql = 'SELECT * FROM Locker';
     try {
-        const lockers = await db.query(sql);
-        res.status(200).json(lockers);
+        const lockers = await db.all('SELECT * FROM Locker');
+        // Transform to lockerData: { location1: [lockers...], location2: [lockers...] }
+        const lockerData = {};
+        lockers.forEach(locker => {
+            if (!lockerData[locker.location]) lockerData[locker.location] = [];
+            lockerData[locker.location].push({
+                id: locker.lockerID,
+                name: `Locker ${locker.lockerID}`,
+                status: locker.status || 'Available'
+            });
+        });
+        res.json(lockerData);
     } catch (error) {
-        res.status(500).send('Database error: ' + error.message);
+        res.status(500).send('Error reading lockers: ' + error.message);
     }
 });
 
-// Create reservation endpoint
+// --- Create Reservation ---
 app.post('/api/reservations', async (req, res) => {
     const { userId, lockerId, reservationDate } = req.body;
-    const sql = 'INSERT INTO Reservation (userId, lockerId, reservationDate) VALUES (?, ?, ?)';
+    const sql = 'INSERT INTO Reservation (reservationID, userId, lockerId, reservationDate) VALUES (?, ?, ?, ?)';
     try {
-        await db.query(sql, [userId, lockerId, reservationDate]);
+        const reservationID = uuidv4();
+        await db.run(sql, [reservationID, userId, lockerId, reservationDate]);
         res.status(201).send('Reservation created successfully.');
     } catch (error) {
         res.status(500).send('Database error: ' + error.message);
     }
 });
 
-// Payment processing endpoint
+// --- Payment Endpoint (optional) ---
 app.post('/api/pay', async (req, res) => {
     const { userId, amount } = req.body;
-    const sql = 'INSERT INTO Payment (userId, amount) VALUES (?, ?)';
+    const sql = 'INSERT INTO Payment (paymentID, userId, amount) VALUES (?, ?, ?)';
     try {
-        await db.query(sql, [userId, amount]);
+        const paymentID = uuidv4();
+        await db.run(sql, [paymentID, userId, amount]);
         res.status(201).send('Payment processed successfully.');
     } catch (error) {
         res.status(500).send('Database error: ' + error.message);
     }
 });
 
-// Access code retrieval endpoint
-app.get('/api/access-codes', async (req, res) => {
-    const sql = 'SELECT * FROM AccessCode';
-    try {
-        const accessCodes = await db.query(sql);
-        res.status(200).json(accessCodes);
-    } catch (error) {
-        res.status(500).send('Database error: ' + error.message);
-    }
-});
-
-// Admin functionality might extend here...
+// --- Basic homepage / health route ---
 app.get('/', (req, res) => {
     res.send('LockerSystemFinal backend is running!');
 });
