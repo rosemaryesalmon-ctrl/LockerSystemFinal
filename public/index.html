@@ -599,6 +599,40 @@
 
     // --- LOGIN LOGIC ---
 
+    // Show registration form when user clicks "Register"
+document.getElementById('toRegisterBtn').addEventListener('click', () => showPage('registerPage'));
+
+// Registration logic
+document.getElementById('registerBtn').addEventListener('click', async () => {
+    const name = document.getElementById('regName').value.trim();
+    const email = document.getElementById('regEmail').value.trim();
+    const phoneNumber = document.getElementById('regPhone').value.trim();
+    const password = document.getElementById('regPassword').value.trim();
+    const errorDiv = document.getElementById('registerError');
+    errorDiv.textContent = '';
+
+    if (!name || !email || !password) {
+        errorDiv.textContent = "Fill in all required fields.";
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, email, phoneNumber, password })
+        });
+        if (response.ok) {
+            alert("Registration successful! You can now log in.");
+            showPage('loginPage');
+        } else {
+            errorDiv.textContent = "Registration failed: " + (await response.text());
+        }
+    } catch (err) {
+        errorDiv.textContent = "Could not connect to server.";
+    }
+});
+
     document.getElementById('adminLoginBtn').addEventListener('click', async () => {
         const email = document.getElementById('adminEmail').value.trim();
         const password = document.getElementById('adminPassword').value.trim();
@@ -623,37 +657,28 @@
     });
 
     document.getElementById('loginBtn').addEventListener('click', async () => {
-        const email = document.getElementById('email').value.trim();
-        const password = document.getElementById('password').value.trim();
-        const error = document.getElementById('loginError');
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value.trim();
+    const error = document.getElementById('loginError');
+    error.textContent = "";
 
-        try {
-            const response = await fetch('/api/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password })
-            });
-
-            if (response.ok) {
-                const userData = await response.json();
-                appState.user = { email: email, userID: userData.id };
-
-                if (appState.sessionEnd && new Date().getTime() < appState.sessionEnd) {
-                    showPage('timerPage');
-                } else {
-                    // Otherwise, let them make a new reservation
-                    updateReservationSummary();
-                    showPage('reservationPage');
-                }
-            } else {
-                error.textContent = 'Invalid user credentials.';
-            }
-        } catch (err) {
-            error.textContent = 'Server connection failed.';
+    try {
+        const response = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+        if (response.ok) {
+            const userData = await response.json();
+            appState.user = { email: userData.email, userID: userData.id };
+            showPage('reservationPage');
+        } else {
+            error.textContent = "Invalid user credentials.";
         }
-    });
-
-
+    } catch (err) {
+        error.textContent = "Server connection failed.";
+    }
+});
 
     // --- RESERVATION & UTILS ---
 
