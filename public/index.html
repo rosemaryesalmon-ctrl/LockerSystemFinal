@@ -1431,28 +1431,28 @@ document.getElementById('registerBtn').addEventListener('click', async () => {
 
     // --- LOGIN LOGIC ---
 
-    document.getElementById('adminLoginBtn').addEventListener('click', async () => {
-        const email = document.getElementById('adminEmail').value.trim();
-        const password = document.getElementById('adminPassword').value.trim();
-        const error = document.getElementById('adminLoginError');
+  document.getElementById('adminLoginBtn').addEventListener('click', async () => {
+    const email = document.getElementById('adminEmail').value.trim();
+    const password = document.getElementById('adminPassword').value.trim();
+    const errorDiv = document.getElementById('adminLoginError');
 
-        try {
-            const response = await fetch('/api/admin/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password })
-            });
-
-            if (response.ok) {
-                refreshAdminStats();
-                showPage('adminPage');
-            } else {
-                error.textContent = 'Invalid admin credentials.';
-            }
-        } catch (err) {
-            error.textContent = 'Server connection failed.';
+    try {
+        const response = await fetch('/api/admin/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+        if (response.ok) {
+            const adminData = await response.json();
+            // Save admin info in your app state if you want, and show the admin page
+            showPage('adminPage');
+        } else {
+            errorDiv.textContent = "Invalid admin credentials.";
         }
-    });
+    } catch (err) {
+        errorDiv.textContent = "Server connection failed.";
+    }
+});
 
     document.getElementById('loginBtn').addEventListener('click', async () => {
         const email = document.getElementById('email').value.trim();
@@ -1684,8 +1684,6 @@ document.getElementById('registerBtn').addEventListener('click', async () => {
         showPage('welcomePage');
     }
 });
-
-
 
 
     document.querySelectorAll('.tab-btn').forEach(btn => {
