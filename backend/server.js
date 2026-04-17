@@ -6,7 +6,7 @@ const app = express();
 app.use(bodyParser.json());
 
 // Database connection setup (assumed already done)
-const db = require('./db');
+const db = require('../database');
 
 // User registration endpoint
 app.post('/api/register', async (req, res) => {
