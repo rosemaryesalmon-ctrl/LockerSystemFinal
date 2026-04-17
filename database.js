@@ -68,5 +68,21 @@ db.run(`CREATE TABLE IF NOT EXISTS Payment (
     FOREIGN KEY(reservationID) REFERENCES Reservation(reservationID)  
 );`);
 
+module.exports = {
+    run: (...args) => new Promise((resolve, reject) =>
+        db.run(...args, function(err) {
+            if (err) reject(err);
+            else resolve(this);
+        })
+    ),
+    get: (...args) => new Promise((resolve, reject) =>
+        db.get(...args, (err, row) => err ? reject(err) : resolve(row))
+    ),
+    all: (...args) => new Promise((resolve, reject) =>
+        db.all(...args, (err, rows) => err ? reject(err) : resolve(rows))
+    ),
+};
+
+
 // Close the database connection
 db.close();
