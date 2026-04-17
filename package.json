@@ -1,1 +1,16 @@
-{\n  "name": "LockerSystemFinal",\n  "version": "1.0.0",\n  "description": "A project for managing locker systems.",\n  "main": "index.js",\n  "scripts": {\n    "test": "echo 'No test specified' && exit 1"\n  },\n  "dependencies": {\n    "express": "^4.17.1",\n    "body-parser": "^1.19.0",\n    "sqlite3": "^5.0.0",\n    "cors": "^2.8.5",\n    "dotenv": "^8.2.0"\n  },\n  "license": "ISC"\n}
+{
+  "name": "LockerSystemFinal",
+  "version": "1.0.0",
+  "description": "A project for managing locker systems.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node backend/server.js"
+  },
+  "dependencies": {
+    "express": "^4.17.1",
+    "body-parser": "^1.19.0",
+    "sqlite3": "^5.0.0",
+    "cors": "^2.8.5"
+  },
+  "license": "ISC"
+}
