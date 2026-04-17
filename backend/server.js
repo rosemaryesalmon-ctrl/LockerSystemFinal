@@ -83,6 +83,9 @@ app.get('/api/access-codes', async (req, res) => {
 });
 
 // Admin functionality might extend here...
+app.get('/', (req, res) => {
+    res.send('LockerSystemFinal backend is running!');
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
