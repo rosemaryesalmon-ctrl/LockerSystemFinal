@@ -278,6 +278,7 @@
     <div class="portal-card">
         <h1>Welcome</h1>
         <p>Please select your access level</p>
+        <button id="toRegisterBtn" class="btn secondary small">Register</button>
         <div class="role-container">
             <div class="role-box" id="adminPortalBtn">
                 <div class="icon">⚙️</div>
@@ -291,6 +292,31 @@
             </div>
         </div>
     </div>
+</section>
+
+    <section id="registerPage" class="page">
+  <div class="card narrow">
+    <h1>User Registration</h1>
+    <div class="field">
+      <label for="regName">Full Name</label>
+      <input id="regName" type="text" required />
+    </div>
+    <div class="field">
+      <label for="regEmail">Email</label>
+      <input id="regEmail" type="email" required />
+    </div>
+    <div class="field">
+      <label for="regPhone">Phone Number</label>
+      <input id="regPhone" type="text" />
+    </div>
+    <div class="field">
+      <label for="regPassword">Password</label>
+      <input id="regPassword" type="password" required />
+    </div>
+    <!-- Optional: Hide role, default to User -->
+    <button class="btn" id="registerBtn">Register</button>
+    <div id="registerError" class="error"></div>
+  </div>
 </section>
 
 <section id="adminLoginPage" class="page">
