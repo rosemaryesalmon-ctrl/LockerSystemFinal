@@ -1540,50 +1540,74 @@ document.getElementById('registerBtn').addEventListener('click', async () => {
         showPage('paymentPage');
     });
 
-    document.getElementById('confirmPaymentBtn').addEventListener('click', () => {
-        const cardName = document.getElementById('cardName').value.trim();
-        if (!cardName) return alert("Please enter card details.");
+    document.getElementById('confirmPaymentBtn').addEventListener('click', async () => {
+    const cardName = document.getElementById('cardName').value.trim();
+    if (!cardName) return alert("Please enter card details.");
 
-        updateReservationSummary();
+    updateReservationSummary();
 
-        const selectedLockerId = document.getElementById('locker').value;
-        fetch(`/api/lockers/${selectedLockerId}/reserve`, {
-        method: 'POST'
-    })
+    const selectedLockerId = document.getElementById('locker').value;
+
+    // --- CREATE Reservation in DB ---
+    const reservationData = {
+        userId: appState.user.userID,
+        lockerId: selectedLockerId,
+        reservationDate: new Date(document.getElementById('startTime').value).toISOString()
+    };
+    try {
+        const res = await fetch('/api/reservations', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(reservationData)
+        });
+        if (!res.ok) {
+            alert('Reservation failed: ' + (await res.text()));
+            return;
+        }
+        // (Optionally) Add a payment step here if your backend supports it
+    } catch (err) {
+        alert('Reservation request failed.');
+        return;
+    }
+
+    // Optionally update locker status in the DB (if you want to keep this route)
+    fetch(`/api/lockers/${selectedLockerId}/reserve`, { method: 'POST' })
     .then(response => {
-        if (!response.ok) console.error("Database failed to update.");
+        if (!response.ok) console.error("Locker DB status update failed.");
         else console.log("Locker status updated in SQLite.");
     })
     .catch(err => console.error("Server error:", err));
-        Object.keys(lockerData).forEach(location => {
-            lockerData[location].forEach(locker => {
-                if (locker.id == selectedLockerId) locker.status = 'Occupied';
-            });
+
+    Object.keys(lockerData).forEach(location => {
+        lockerData[location].forEach(locker => {
+            if (locker.id == selectedLockerId) locker.status = 'Occupied';
         });
-
-        const accessCode = Math.floor(100000 + Math.random() * 900000);
-        const display = document.getElementById('accessCodeDisplay');
-        if (display) display.textContent = accessCode;
-
-        const transactionList = document.getElementById('transactionDetails');
-        if (transactionList) {
-            const timestamp = new Date().toLocaleString();
-            const locName = document.getElementById('location').value;
-            const lockerName = document.getElementById('locker').options[document.getElementById('locker').selectedIndex].text;
-            const total = document.getElementById('summaryTotal').textContent;
-
-            const entry = document.createElement('div');
-            entry.style.borderBottom = "1px solid #eee";
-            entry.style.padding = "10px 0";
-            entry.innerHTML = `<strong>${timestamp}</strong>: ${appState.user.email} reserved <strong>${lockerName}</strong> at <strong>${locName}</strong> for <strong>${total}</strong>.`;
-
-            if (transactionList.textContent.includes("No transaction recorded")) transactionList.innerHTML = '';
-            transactionList.prepend(entry);
-        }
-
-        refreshAdminStats();
-        showPage('accessCodePage');
     });
+
+    // Show access code as before
+    const accessCode = Math.floor(100000 + Math.random() * 900000);
+    const display = document.getElementById('accessCodeDisplay');
+    if (display) display.textContent = accessCode;
+
+    const transactionList = document.getElementById('transactionDetails');
+    if (transactionList) {
+        const timestamp = new Date().toLocaleString();
+        const locName = document.getElementById('location').value;
+        const lockerName = document.getElementById('locker').options[document.getElementById('locker').selectedIndex].text;
+        const total = document.getElementById('summaryTotal').textContent;
+
+        const entry = document.createElement('div');
+        entry.style.borderBottom = "1px solid #eee";
+        entry.style.padding = "10px 0";
+        entry.innerHTML = `<strong>${timestamp}</strong>: ${appState.user.email} reserved <strong>${lockerName}</strong> at <strong>${locName}</strong> for <strong>${total}</strong>.`;
+
+        if (transactionList.textContent.includes("No transaction recorded")) transactionList.innerHTML = '';
+        transactionList.prepend(entry);
+    }
+
+    refreshAdminStats();
+    showPage('accessCodePage');
+});
 
     document.getElementById('startSessionBtn').addEventListener('click', () => {
         const endTimeInput = document.getElementById('endTime').value;
