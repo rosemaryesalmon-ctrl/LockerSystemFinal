@@ -44,13 +44,13 @@ app.post('/api/login', async (req, res) => {
 app.get('/api/lockers', async (req, res) => {
     try {
         const lockers = await db.all('SELECT * FROM Locker');
-        // Transform to lockerData: { location1: [lockers...], location2: [lockers...] }
+        // Group by location if you want to match your JS
         const lockerData = {};
         lockers.forEach(locker => {
             if (!lockerData[locker.location]) lockerData[locker.location] = [];
             lockerData[locker.location].push({
                 id: locker.lockerID,
-                name: `Locker ${locker.lockerID}`,
+                name: locker.name || `Locker ${locker.lockerID}`,
                 status: locker.status || 'Available'
             });
         });
@@ -62,25 +62,43 @@ app.get('/api/lockers', async (req, res) => {
 
 // --- Create Reservation ---
 app.post('/api/reservations', async (req, res) => {
-    const { userId, lockerId, reservationDate } = req.body;
-    const sql = 'INSERT INTO Reservation (reservationID, userId, lockerId, reservationDate) VALUES (?, ?, ?, ?)';
+    const { userID, lockerID, startTime, endTime } = req.body;
+    const sql = 'INSERT INTO Reservation (userID, lockerID, startTime, endTime) VALUES (?, ?, ?, ?)';
     try {
-        const reservationID = uuidv4();
-        await db.run(sql, [reservationID, userId, lockerId, reservationDate]);
+        await db.run(sql, [userID, lockerID, startTime, endTime]);
         res.status(201).send('Reservation created successfully.');
     } catch (error) {
         res.status(500).send('Database error: ' + error.message);
     }
 });
 
-// --- Payment Endpoint (optional) ---
+// --- Payment Endpoint ---
 app.post('/api/pay', async (req, res) => {
-    const { userId, amount } = req.body;
-    const sql = 'INSERT INTO Payment (paymentID, userId, amount) VALUES (?, ?, ?)';
+    const { reservationID, amount, status, paymentMethod } = req.body;
+    const sql = 'INSERT INTO Payment (reservationID, amount, status, paymentMethod) VALUES (?, ?, ?, ?)';
     try {
-        const paymentID = uuidv4();
-        await db.run(sql, [paymentID, userId, amount]);
+        await db.run(sql, [
+            reservationID, 
+            amount, 
+            status || 'Paid', 
+            paymentMethod || 'Unknown'
+        ]);
         res.status(201).send('Payment processed successfully.');
+    } catch (error) {
+        res.status(500).send('Database error: ' + error.message);
+    }
+});
+
+app.post('/api/admin/login', async (req, res) => {
+    const { email, password } = req.body;
+    const sql = 'SELECT * FROM Admin WHERE email = ? AND password = ?';
+    try {
+        const admin = await db.get(sql, [email, password]);
+        if (admin) {
+            res.status(200).json({ id: admin.adminID, email: admin.email });
+        } else {
+            res.status(401).send('Invalid admin credentials.');
+        }
     } catch (error) {
         res.status(500).send('Database error: ' + error.message);
     }
