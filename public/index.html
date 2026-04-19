@@ -744,10 +744,18 @@ document.getElementById('registerBtn').addEventListener('click', async () => {
     document.getElementById('endTime').addEventListener('change', updateReservationSummary);
 
     document.getElementById('reserveBtn').addEventListener('click', () => {
-        if (!appState.user) return alert("Please log in first.");
-        updateReservationSummary();
-        showPage('paymentPage');
-    });
+    // Clear any prior reservation/payment info before new booking
+    localStorage.removeItem('reservation');
+    localStorage.removeItem('payment');
+    sessionStorage.removeItem('reservation');
+    sessionStorage.removeItem('payment');
+
+    if (!appState.user) return alert("Please log in first.");
+    updateReservationSummary();
+    showPage('paymentPage');
+});
+
+
 
     document.getElementById('confirmPaymentBtn').addEventListener('click', () => {
         const cardName = document.getElementById('cardName').value.trim();
