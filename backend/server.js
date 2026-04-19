@@ -89,6 +89,19 @@ app.post('/api/pay', async (req, res) => {
     }
 });
 
+// --- Update Locker Status ---
+app.post('/api/locker/updateStatus', async (req, res) => {
+    const { lockerID, status } = req.body;
+    if (!lockerID || !status) return res.status(400).send('Missing lockerID or status');
+    const sql = 'UPDATE Locker SET status = ? WHERE lockerID = ?';
+    try {
+        await db.run(sql, [status, lockerID]);
+        res.status(200).send('Locker status updated.');
+    } catch (error) {
+        res.status(500).send('Database error: ' + error.message);
+    }
+});
+
 app.post('/api/admin/login', async (req, res) => {
     const { email, password } = req.body;
     const sql = 'SELECT * FROM Admin WHERE email = ? AND password = ?';
@@ -107,9 +120,4 @@ app.post('/api/admin/login', async (req, res) => {
 // --- Basic homepage / health route ---
 app.get('/', (req, res) => {
     res.send('LockerSystemFinal backend is running!');
-});
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
 });
