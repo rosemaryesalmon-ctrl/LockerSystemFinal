@@ -28,6 +28,32 @@ db.run(`CREATE TABLE IF NOT EXISTS Admin (
     role TEXT  
 );`);
 
+// Add a hardcoded admin user if it doesn't exist
+db.get(`SELECT COUNT(*) as count FROM Admin WHERE email = ?`, ['admin@uta.edu'], (err, row) => {
+    if (err) {
+        console.error('Error checking for admin user:', err.message);
+    } else if (row.count === 0) {
+        db.run(
+            `INSERT INTO Admin (adminID, name, email, phoneNumber, password, role) VALUES (?, ?, ?, ?, ?, ?)`,
+            [
+                'admin-uuid-001',    // Can be any unique string or uuid
+                'Admin User',
+                'admin@uta.edu',
+                '1234567890',
+                '123',
+                'Admin'
+            ],
+            (err2) => {
+                if (err2) {
+                    console.error('Error inserting default admin user:', err2.message);
+                } else {
+                    console.log('Default admin user created.');
+                }
+            }
+        );
+    }
+});
+
 // Locker table creation
  db.run(`CREATE TABLE IF NOT EXISTS Locker (  
     lockerID INTEGER PRIMARY KEY AUTOINCREMENT,  
