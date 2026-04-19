@@ -11,7 +11,7 @@ app.use(express.static(path.join(__dirname, '../public')));
 
 const db = require('../database');
 
-// --- USER REGISTRATION ---
+// --- User Registration ---
 app.post('/api/register', async (req, res) => {
     const { name, email, phoneNumber, password } = req.body;
     const sql = 'INSERT INTO User (userID, name, email, phoneNumber, password, role) VALUES (?, ?, ?, ?, ?, ?)';
@@ -24,7 +24,7 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
-// --- USER LOGIN ---
+// --- User Login ---
 app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
     const sql = 'SELECT * FROM User WHERE email = ? AND password = ?';
@@ -40,7 +40,7 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-// --- ADMIN LOGIN ---
+// --- Admin Login ---
 app.post('/api/admin/login', async (req, res) => {
     const { email, password } = req.body;
     const sql = 'SELECT * FROM Admin WHERE email = ? AND password = ?';
@@ -56,11 +56,11 @@ app.post('/api/admin/login', async (req, res) => {
     }
 });
 
-// --- GET ALL LOCKERS (GROUPED BY LOCATION) ---
+// --- Get All Lockers (grouped by location for frontend compatibility) ---
 app.get('/api/lockers', async (req, res) => {
     try {
         const lockers = await db.all('SELECT * FROM Locker');
-        // Group by location for front-end compatibility
+        // Group by location if you want to match your JS
         const lockerData = {};
         lockers.forEach(locker => {
             if (!lockerData[locker.location]) lockerData[locker.location] = [];
@@ -76,25 +76,26 @@ app.get('/api/lockers', async (req, res) => {
     }
 });
 
-// --- CREATE RESERVATION & LOCKER STATUS UPDATE ---
+// --- Create Reservation and set locker to Occupied ---
 app.post('/api/reservations', async (req, res) => {
     const { userID, lockerID, startTime, endTime } = req.body;
-    const reservationID = uuidv4();
-    const sql = 'INSERT INTO Reservation (reservationID, userID, lockerID, startTime, endTime, status) VALUES (?, ?, ?, ?, ?, ?)';
+    const sql = 'INSERT INTO Reservation (userID, lockerID, startTime, endTime) VALUES (?, ?, ?, ?)';
     try {
-        await db.run(sql, [reservationID, userID, lockerID, startTime, endTime, 'Active']);
+        // SQLite autoincrements reservationID, so no need for uuid
+        const result = await db.run(sql, [userID, lockerID, startTime, endTime]);
         await db.run('UPDATE Locker SET status = ? WHERE lockerID = ?', ['Occupied', lockerID]);
-        res.status(201).json({ reservationID });
+        res.status(201).json({ reservationID: result.lastID });
     } catch (error) {
         res.status(500).send('Database error: ' + error.message);
     }
 });
 
-// --- END RESERVATION & FREE LOCKER ---
+// --- End Reservation (free locker and update reservation record) ---
 app.post('/api/reservations/end', async (req, res) => {
     const { lockerID, reservationID } = req.body;
     try {
         if (reservationID) {
+            // If your Reservation table has a status field. If not, this is a no-op.
             await db.run('UPDATE Reservation SET status = ? WHERE reservationID = ?', ['Ended', reservationID]);
         }
         await db.run('UPDATE Locker SET status = ? WHERE lockerID = ?', ['Available', lockerID]);
@@ -104,17 +105,15 @@ app.post('/api/reservations/end', async (req, res) => {
     }
 });
 
-// --- PAYMENT ENDPOINT ---
+// --- Payment Endpoint ---
 app.post('/api/pay', async (req, res) => {
     const { reservationID, amount, status, paymentMethod } = req.body;
-    const paymentID = uuidv4();
-    const sql = 'INSERT INTO Payment (paymentID, reservationID, amount, status, paymentMethod) VALUES (?, ?, ?, ?, ?)';
+    const sql = 'INSERT INTO Payment (reservationID, amount, status, paymentMethod) VALUES (?, ?, ?, ?)';
     try {
         await db.run(sql, [
-            paymentID,
-            reservationID,
-            amount,
-            status || 'Paid',
+            reservationID, 
+            amount, 
+            status || 'Paid', 
             paymentMethod || 'Unknown'
         ]);
         res.status(201).send('Payment processed successfully.');
@@ -123,7 +122,7 @@ app.post('/api/pay', async (req, res) => {
     }
 });
 
-// --- UPDATE LOCKER STATUS MANUALLY ---
+// --- Update Locker Status (manual override, not necessary for normal reservation flow) ---
 app.post('/api/locker/updateStatus', async (req, res) => {
     const { lockerID, status } = req.body;
     if (!lockerID || !status) return res.status(400).send('Missing lockerID or status');
@@ -136,7 +135,7 @@ app.post('/api/locker/updateStatus', async (req, res) => {
     }
 });
 
-// --- ADMIN: ALL USERS ---
+// --- Admin: All Users List (for report panel) ---
 app.get('/api/admin/users', async (req, res) => {
     try {
         const users = await db.all('SELECT userID, name, email, phoneNumber FROM User');
@@ -146,7 +145,7 @@ app.get('/api/admin/users', async (req, res) => {
     }
 });
 
-// --- ADMIN: ALL RESERVATIONS (JOIN USER/LOCKER INFO) ---
+// --- Admin: All Reservations and Locker/User Info (for report panel) ---
 app.get('/api/admin/reservations', async (req, res) => {
     try {
         const reservations = await db.all(`
@@ -161,7 +160,7 @@ app.get('/api/admin/reservations', async (req, res) => {
     }
 });
 
-// --- BASIC HOMEPAGE / HEALTH CHECK ---
+// --- Basic homepage / health route ---
 app.get('/', (req, res) => {
     res.send('LockerSystemFinal backend is running!');
 });
