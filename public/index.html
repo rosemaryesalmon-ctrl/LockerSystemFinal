@@ -1333,7 +1333,6 @@ document.getElementById('registerBtn').addEventListener('click', async () => {
         </div>
     </div>
 </section>
-
 <script>
     let lockerData = {};
 
@@ -1345,6 +1344,15 @@ document.getElementById('registerBtn').addEventListener('click', async () => {
         sessionEnd: null,
         timerInterval: null
     };
+
+    // --- Utility to update locker status in backend database via API ---
+    function updateLockerStatus(lockerID, newStatus) {
+        fetch('/api/locker/updateStatus', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lockerID, status: newStatus })
+        });
+    }
 
     // --- INITIALIZATION ---
     async function loadLockers() {
@@ -1364,12 +1372,12 @@ document.getElementById('registerBtn').addEventListener('click', async () => {
         document.getElementById(pageId).classList.add('active');
 
         const logoutBtn = document.getElementById('logoutBtn');
-    if (pageId === 'welcomePage') {
-        logoutBtn.style.display = 'none';
-    } else {
-        logoutBtn.style.display = 'block';
+        if (pageId === 'welcomePage') {
+            logoutBtn.style.display = 'none';
+        } else {
+            logoutBtn.style.display = 'block';
+        }
     }
-}
 
     function populateLocations() {
         const locationSelect = document.getElementById('location');
@@ -1397,67 +1405,101 @@ document.getElementById('registerBtn').addEventListener('click', async () => {
     }
 
     function refreshAdminStats() {
-    let inUseCount = 0;
-    let totalCount = 0;
+        let inUseCount = 0;
+        let totalCount = 0;
 
-    console.log("Admin Refresh Data:", lockerData);
+        console.log("Admin Refresh Data:", lockerData);
 
-    Object.keys(lockerData).forEach(location => {
-        lockerData[location].forEach(locker => {
-            totalCount++;
+        Object.keys(lockerData).forEach(location => {
+            lockerData[location].forEach(locker => {
+                totalCount++;
 
-            const status = locker.status ? locker.status.toLowerCase() : '';
+                const status = locker.status ? locker.status.toLowerCase() : '';
 
-            if (status !== 'available' && status !== 'free' && status !== '') {
-                inUseCount++;
-            }
+                if (status !== 'available' && status !== 'free' && status !== '') {
+                    inUseCount++;
+                }
+            });
         });
-    });
 
-    const totalEl = document.getElementById('totalLockers');
-    const inUseEl = document.getElementById('lockersInUse');
-    if (totalEl) totalEl.textContent = totalCount;
-    if (inUseEl) inUseEl.textContent = inUseCount;
+        const totalEl = document.getElementById('totalLockers');
+        const inUseEl = document.getElementById('lockersInUse');
+        if (totalEl) totalEl.textContent = totalCount;
+        if (inUseEl) inUseEl.textContent = inUseCount;
 
-    if (appState.user) {
-        const adminEmailEl = document.getElementById('adminUserEmail');
-        const adminIdEl = document.getElementById('adminUserId');
+        if (appState.user) {
+            const adminEmailEl = document.getElementById('adminUserEmail');
+            const adminIdEl = document.getElementById('adminUserId');
 
-        if (adminEmailEl) adminEmailEl.textContent = appState.user.email;
-        if (adminIdEl) adminIdEl.textContent = appState.user.userID || 'N/A';
+            if (adminEmailEl) adminEmailEl.textContent = appState.user.email;
+            if (adminIdEl) adminIdEl.textContent = appState.user.userID || 'N/A';
+        }
     }
-}
-
 
     // --- LOGIN LOGIC ---
 
-  document.getElementById('adminLoginBtn').addEventListener('click', async () => {
-    const email = document.getElementById('adminEmail').value.trim();
-    const password = document.getElementById('adminPassword').value.trim();
-    const errorDiv = document.getElementById('adminLoginError');
+    // Show registration form when user clicks "Register"
+    document.getElementById('toRegisterBtn').addEventListener('click', () => showPage('registerPage'));
 
-    try {
-        const response = await fetch('/api/admin/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password })
-        });
-        if (response.ok) {
-            const adminData = await response.json();
-            // Save admin info in your app state if you want, and show the admin page
-            showPage('adminPage');
-        } else {
-            errorDiv.textContent = "Invalid admin credentials.";
+    // Registration logic
+    document.getElementById('registerBtn').addEventListener('click', async () => {
+        const name = document.getElementById('regName').value.trim();
+        const email = document.getElementById('regEmail').value.trim();
+        const phoneNumber = document.getElementById('regPhone').value.trim();
+        const password = document.getElementById('regPassword').value.trim();
+        const errorDiv = document.getElementById('registerError');
+        errorDiv.textContent = '';
+
+        if (!name || !email || !password) {
+            errorDiv.textContent = "Fill in all required fields.";
+            return;
         }
-    } catch (err) {
-        errorDiv.textContent = "Server connection failed.";
-    }
-});
+
+        try {
+            const response = await fetch('/api/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, email, phoneNumber, password })
+            });
+            if (response.ok) {
+                alert("Registration successful! You can now log in.");
+                showPage('loginPage');
+            } else {
+                errorDiv.textContent = "Registration failed: " + (await response.text());
+            }
+        } catch (err) {
+            errorDiv.textContent = "Could not connect to server.";
+        }
+    });
+
+    document.getElementById('adminLoginBtn').addEventListener('click', async () => {
+        const email = document.getElementById('adminEmail').value.trim();
+        const password = document.getElementById('adminPassword').value.trim();
+        const error = document.getElementById('adminLoginError');
+
+        try {
+            const response = await fetch('/api/admin/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+
+            if (response.ok) {
+                refreshAdminStats();
+                showPage('adminPage');
+            } else {
+                error.textContent = 'Invalid admin credentials.';
+            }
+        } catch (err) {
+            error.textContent = 'Server connection failed.';
+        }
+    });
 
     document.getElementById('loginBtn').addEventListener('click', async () => {
         const email = document.getElementById('email').value.trim();
         const password = document.getElementById('password').value.trim();
         const error = document.getElementById('loginError');
+        error.textContent = "";
 
         try {
             const response = await fetch('/api/login', {
@@ -1465,27 +1507,17 @@ document.getElementById('registerBtn').addEventListener('click', async () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password })
             });
-
             if (response.ok) {
                 const userData = await response.json();
-                appState.user = { email: email, userID: userData.id };
-
-                if (appState.sessionEnd && new Date().getTime() < appState.sessionEnd) {
-                    showPage('timerPage');
-                } else {
-                    // Otherwise, let them make a new reservation
-                    updateReservationSummary();
-                    showPage('reservationPage');
-                }
+                appState.user = { email: userData.email, userID: userData.id };
+                showPage('reservationPage');
             } else {
-                error.textContent = 'Invalid user credentials.';
+                error.textContent = "Invalid user credentials.";
             }
         } catch (err) {
-            error.textContent = 'Server connection failed.';
+            error.textContent = "Server connection failed.";
         }
     });
-
-
 
     // --- RESERVATION & UTILS ---
 
@@ -1540,74 +1572,46 @@ document.getElementById('registerBtn').addEventListener('click', async () => {
         showPage('paymentPage');
     });
 
-    document.getElementById('confirmPaymentBtn').addEventListener('click', async () => {
-    const cardName = document.getElementById('cardName').value.trim();
-    if (!cardName) return alert("Please enter card details.");
+    document.getElementById('confirmPaymentBtn').addEventListener('click', () => {
+        const cardName = document.getElementById('cardName').value.trim();
+        if (!cardName) return alert("Please enter card details.");
 
-    updateReservationSummary();
+        updateReservationSummary();
 
-    const selectedLockerId = document.getElementById('locker').value;
-
-    // --- CREATE Reservation in DB ---
-    const reservationData = {
-        userId: appState.user.userID,
-        lockerId: selectedLockerId,
-        reservationDate: new Date(document.getElementById('startTime').value).toISOString()
-    };
-    try {
-        const res = await fetch('/api/reservations', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(reservationData)
+        const selectedLockerId = document.getElementById('locker').value;
+        Object.keys(lockerData).forEach(location => {
+            lockerData[location].forEach(locker => {
+                if (locker.id == selectedLockerId) {
+                    locker.status = 'Occupied';
+                    // --- Updates status in database
+                    updateLockerStatus(locker.id, 'Occupied');
+                }
+            });
         });
-        if (!res.ok) {
-            alert('Reservation failed: ' + (await res.text()));
-            return;
+
+        const accessCode = Math.floor(100000 + Math.random() * 900000);
+        const display = document.getElementById('accessCodeDisplay');
+        if (display) display.textContent = accessCode;
+
+        const transactionList = document.getElementById('transactionDetails');
+        if (transactionList) {
+            const timestamp = new Date().toLocaleString();
+            const locName = document.getElementById('location').value;
+            const lockerName = document.getElementById('locker').options[document.getElementById('locker').selectedIndex].text;
+            const total = document.getElementById('summaryTotal').textContent;
+
+            const entry = document.createElement('div');
+            entry.style.borderBottom = "1px solid #eee";
+            entry.style.padding = "10px 0";
+            entry.innerHTML = `<strong>${timestamp}</strong>: ${appState.user.email} reserved <strong>${lockerName}</strong> at <strong>${locName}</strong> for <strong>${total}</strong>.`;
+
+            if (transactionList.textContent.includes("No transaction recorded")) transactionList.innerHTML = '';
+            transactionList.prepend(entry);
         }
-        // (Optionally) Add a payment step here if your backend supports it
-    } catch (err) {
-        alert('Reservation request failed.');
-        return;
-    }
 
-    // Optionally update locker status in the DB (if you want to keep this route)
-    fetch(`/api/lockers/${selectedLockerId}/reserve`, { method: 'POST' })
-    .then(response => {
-        if (!response.ok) console.error("Locker DB status update failed.");
-        else console.log("Locker status updated in SQLite.");
-    })
-    .catch(err => console.error("Server error:", err));
-
-    Object.keys(lockerData).forEach(location => {
-        lockerData[location].forEach(locker => {
-            if (locker.id == selectedLockerId) locker.status = 'Occupied';
-        });
+        refreshAdminStats();
+        showPage('accessCodePage');
     });
-
-    // Show access code as before
-    const accessCode = Math.floor(100000 + Math.random() * 900000);
-    const display = document.getElementById('accessCodeDisplay');
-    if (display) display.textContent = accessCode;
-
-    const transactionList = document.getElementById('transactionDetails');
-    if (transactionList) {
-        const timestamp = new Date().toLocaleString();
-        const locName = document.getElementById('location').value;
-        const lockerName = document.getElementById('locker').options[document.getElementById('locker').selectedIndex].text;
-        const total = document.getElementById('summaryTotal').textContent;
-
-        const entry = document.createElement('div');
-        entry.style.borderBottom = "1px solid #eee";
-        entry.style.padding = "10px 0";
-        entry.innerHTML = `<strong>${timestamp}</strong>: ${appState.user.email} reserved <strong>${lockerName}</strong> at <strong>${locName}</strong> for <strong>${total}</strong>.`;
-
-        if (transactionList.textContent.includes("No transaction recorded")) transactionList.innerHTML = '';
-        transactionList.prepend(entry);
-    }
-
-    refreshAdminStats();
-    showPage('accessCodePage');
-});
 
     document.getElementById('startSessionBtn').addEventListener('click', () => {
         const endTimeInput = document.getElementById('endTime').value;
@@ -1646,45 +1650,29 @@ document.getElementById('registerBtn').addEventListener('click', async () => {
             setTimeout(() => { document.getElementById('timerMessage').textContent = ""; }, 3000);
         }
     });
-
     document.getElementById('endBtn').addEventListener('click', () => {
-    if (confirm("Are you sure you want to end your session?")) {
-        // 1. CLEAR THE TIMER
-        clearInterval(appState.timerInterval);
-        appState.timerInterval = null;
-        appState.sessionEnd = null;
+        if (confirm("Are you sure you want to end your session?")) {
+            // 1. CLEAR THE TIMER
+            clearInterval(appState.timerInterval);
+            appState.timerInterval = null;
+            appState.sessionEnd = null; // Clear the expiration time
 
-        // 2. GET THE CURRENT LOCKER ID
-        const selectedLockerId = document.getElementById('locker').value;
-
-        // --- NEW: SYNC WITH JAVA DATABASE ---
-        fetch(`/api/lockers/${selectedLockerId}/release`, {
-            method: 'POST'
-        })
-        .then(response => {
-            if (!response.ok) {
-                console.error("Database failed to release locker.");
-            } else {
-                console.log("Locker status set to Available in SQLite.");
-            }
-        })
-        .catch(err => console.error("Server connection error:", err));
-        // -------------------------------------
-
-        // 3. UPDATE LOCAL MEMORY
-        Object.keys(lockerData).forEach(location => {
-            lockerData[location].forEach(locker => {
-                if (locker.id == selectedLockerId) {
-                    locker.status = 'Available';
-                }
+            const selectedLockerId = document.getElementById('locker').value;
+            Object.keys(lockerData).forEach(location => {
+                lockerData[location].forEach(locker => {
+                    if (locker.id == selectedLockerId) {
+                        locker.status = 'Available';
+                        // --- Updates status in database
+                        updateLockerStatus(locker.id, 'Available');
+                    }
+                });
             });
-        });
 
-        refreshAdminStats();
-        showPage('welcomePage');
-    }
-});
+            refreshAdminStats();
 
+            showPage('welcomePage');
+        }
+    });
 
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -1694,20 +1682,19 @@ document.getElementById('registerBtn').addEventListener('click', async () => {
         });
     });
 
-
     document.getElementById('logoutBtn').addEventListener('click', () => {
-    if (confirm("Are you sure you want to logout?")) {
-        // REMOVED: appState.user = null;
-        // We keep the user data so the Admin can view it in the Reports!
+        if (confirm("Are you sure you want to logout?")) {
+            // REMOVED: appState.user = null;
+            // We keep the user data so the Admin can view it in the Reports!
 
-        if (appState.timerInterval) {
-            clearInterval(appState.timerInterval);
-            appState.timerInterval = null;
+            if (appState.timerInterval) {
+                clearInterval(appState.timerInterval);
+                appState.timerInterval = null;
+            }
+
+            showPage('welcomePage');
         }
-
-        showPage('welcomePage');
-    }
-});
+    });
 
     loadLockers();
 </script>
