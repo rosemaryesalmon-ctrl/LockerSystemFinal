@@ -11,7 +11,7 @@ app.use(express.static(path.join(__dirname, '../public')));
 
 const db = require('../database');
 
-// --- User Registration ---
+// --- USER REGISTRATION ---
 app.post('/api/register', async (req, res) => {
     const { name, email, phoneNumber, password } = req.body;
     const sql = 'INSERT INTO User (userID, name, email, phoneNumber, password, role) VALUES (?, ?, ?, ?, ?, ?)';
@@ -24,7 +24,7 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
-// --- User Login ---
+// --- USER LOGIN ---
 app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
     const sql = 'SELECT * FROM User WHERE email = ? AND password = ?';
@@ -40,68 +40,7 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-// --- Get All Lockers (grouped by location for frontend compatibility) ---
-app.get('/api/lockers', async (req, res) => {
-    try {
-        const lockers = await db.all('SELECT * FROM Locker');
-        // Group by location if you want to match your JS
-        const lockerData = {};
-        lockers.forEach(locker => {
-            if (!lockerData[locker.location]) lockerData[locker.location] = [];
-            lockerData[locker.location].push({
-                id: locker.lockerID,
-                name: locker.name || `Locker ${locker.lockerID}`,
-                status: locker.status || 'Available'
-            });
-        });
-        res.json(lockerData);
-    } catch (error) {
-        res.status(500).send('Error reading lockers: ' + error.message);
-    }
-});
-
-// --- Create Reservation ---
-app.post('/api/reservations', async (req, res) => {
-    const { userID, lockerID, startTime, endTime } = req.body;
-    const sql = 'INSERT INTO Reservation (userID, lockerID, startTime, endTime) VALUES (?, ?, ?, ?)';
-    try {
-        await db.run(sql, [userID, lockerID, startTime, endTime]);
-        res.status(201).send('Reservation created successfully.');
-    } catch (error) {
-        res.status(500).send('Database error: ' + error.message);
-    }
-});
-
-// --- Payment Endpoint ---
-app.post('/api/pay', async (req, res) => {
-    const { reservationID, amount, status, paymentMethod } = req.body;
-    const sql = 'INSERT INTO Payment (reservationID, amount, status, paymentMethod) VALUES (?, ?, ?, ?)';
-    try {
-        await db.run(sql, [
-            reservationID, 
-            amount, 
-            status || 'Paid', 
-            paymentMethod || 'Unknown'
-        ]);
-        res.status(201).send('Payment processed successfully.');
-    } catch (error) {
-        res.status(500).send('Database error: ' + error.message);
-    }
-});
-
-// --- Update Locker Status ---
-app.post('/api/locker/updateStatus', async (req, res) => {
-    const { lockerID, status } = req.body;
-    if (!lockerID || !status) return res.status(400).send('Missing lockerID or status');
-    const sql = 'UPDATE Locker SET status = ? WHERE lockerID = ?';
-    try {
-        await db.run(sql, [status, lockerID]);
-        res.status(200).send('Locker status updated.');
-    } catch (error) {
-        res.status(500).send('Database error: ' + error.message);
-    }
-});
-
+// --- ADMIN LOGIN ---
 app.post('/api/admin/login', async (req, res) => {
     const { email, password } = req.body;
     const sql = 'SELECT * FROM Admin WHERE email = ? AND password = ?';
@@ -117,7 +56,112 @@ app.post('/api/admin/login', async (req, res) => {
     }
 });
 
-// --- Basic homepage / health route ---
+// --- GET ALL LOCKERS (GROUPED BY LOCATION) ---
+app.get('/api/lockers', async (req, res) => {
+    try {
+        const lockers = await db.all('SELECT * FROM Locker');
+        // Group by location for front-end compatibility
+        const lockerData = {};
+        lockers.forEach(locker => {
+            if (!lockerData[locker.location]) lockerData[locker.location] = [];
+            lockerData[locker.location].push({
+                id: locker.lockerID,
+                name: locker.name || `Locker ${locker.lockerID}`,
+                status: locker.status || 'Available'
+            });
+        });
+        res.json(lockerData);
+    } catch (error) {
+        res.status(500).send('Error reading lockers: ' + error.message);
+    }
+});
+
+// --- CREATE RESERVATION & LOCKER STATUS UPDATE ---
+app.post('/api/reservations', async (req, res) => {
+    const { userID, lockerID, startTime, endTime } = req.body;
+    const reservationID = uuidv4();
+    const sql = 'INSERT INTO Reservation (reservationID, userID, lockerID, startTime, endTime, status) VALUES (?, ?, ?, ?, ?, ?)';
+    try {
+        await db.run(sql, [reservationID, userID, lockerID, startTime, endTime, 'Active']);
+        await db.run('UPDATE Locker SET status = ? WHERE lockerID = ?', ['Occupied', lockerID]);
+        res.status(201).json({ reservationID });
+    } catch (error) {
+        res.status(500).send('Database error: ' + error.message);
+    }
+});
+
+// --- END RESERVATION & FREE LOCKER ---
+app.post('/api/reservations/end', async (req, res) => {
+    const { lockerID, reservationID } = req.body;
+    try {
+        if (reservationID) {
+            await db.run('UPDATE Reservation SET status = ? WHERE reservationID = ?', ['Ended', reservationID]);
+        }
+        await db.run('UPDATE Locker SET status = ? WHERE lockerID = ?', ['Available', lockerID]);
+        res.status(200).send('Reservation ended and locker marked available.');
+    } catch (error) {
+        res.status(500).send('Database error: ' + error.message);
+    }
+});
+
+// --- PAYMENT ENDPOINT ---
+app.post('/api/pay', async (req, res) => {
+    const { reservationID, amount, status, paymentMethod } = req.body;
+    const paymentID = uuidv4();
+    const sql = 'INSERT INTO Payment (paymentID, reservationID, amount, status, paymentMethod) VALUES (?, ?, ?, ?, ?)';
+    try {
+        await db.run(sql, [
+            paymentID,
+            reservationID,
+            amount,
+            status || 'Paid',
+            paymentMethod || 'Unknown'
+        ]);
+        res.status(201).send('Payment processed successfully.');
+    } catch (error) {
+        res.status(500).send('Database error: ' + error.message);
+    }
+});
+
+// --- UPDATE LOCKER STATUS MANUALLY ---
+app.post('/api/locker/updateStatus', async (req, res) => {
+    const { lockerID, status } = req.body;
+    if (!lockerID || !status) return res.status(400).send('Missing lockerID or status');
+    const sql = 'UPDATE Locker SET status = ? WHERE lockerID = ?';
+    try {
+        await db.run(sql, [status, lockerID]);
+        res.status(200).send('Locker status updated.');
+    } catch (error) {
+        res.status(500).send('Database error: ' + error.message);
+    }
+});
+
+// --- ADMIN: ALL USERS ---
+app.get('/api/admin/users', async (req, res) => {
+    try {
+        const users = await db.all('SELECT userID, name, email, phoneNumber FROM User');
+        res.json(users);
+    } catch (error) {
+        res.status(500).send('Database error: ' + error.message);
+    }
+});
+
+// --- ADMIN: ALL RESERVATIONS (JOIN USER/LOCKER INFO) ---
+app.get('/api/admin/reservations', async (req, res) => {
+    try {
+        const reservations = await db.all(`
+            SELECT Reservation.*, User.name AS userName, Locker.name AS lockerName, Locker.location 
+            FROM Reservation 
+            LEFT JOIN User ON Reservation.userID = User.userID 
+            LEFT JOIN Locker ON Reservation.lockerID = Locker.lockerID
+        `);
+        res.json(reservations);
+    } catch (error) {
+        res.status(500).send('Database error: ' + error.message);
+    }
+});
+
+// --- BASIC HOMEPAGE / HEALTH CHECK ---
 app.get('/', (req, res) => {
     res.send('LockerSystemFinal backend is running!');
 });
