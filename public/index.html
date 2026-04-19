@@ -279,21 +279,27 @@ document.addEventListener('DOMContentLoaded', function () {
     const appState = {
         user: null, reservation: null, payment: null, accessCode: null, sessionEnd: null, timerInterval: null
     };
+
     function clearAppState() {
         Object.keys(appState).forEach(k => { if (k !== 'timerInterval') appState[k] = null; });
     }
+
     function clearAllData() {
         if (appState.timerInterval) { clearInterval(appState.timerInterval); appState.timerInterval = null; }
         clearAppState();
         localStorage.clear();
         sessionStorage.clear();
     }
+
     function clearRegisterForm() {
         document.getElementById('regName').value = '';
         document.getElementById('regEmail').value = '';
         document.getElementById('regPhone').value = '';
         document.getElementById('regPassword').value = '';
+        const errorDiv = document.getElementById('registerError');
+        if (errorDiv) errorDiv.textContent = '';
     }
+
     async function loadLockers() {
         try {
             const response = await fetch('/api/lockers');
@@ -305,11 +311,13 @@ document.addEventListener('DOMContentLoaded', function () {
             console.error("Failed to fetch lockers from database:", err);
         }
     }
+
     function showPage(pageId) {
         document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
         document.getElementById(pageId).classList.add('active');
         document.getElementById('logoutBtn').style.display = (pageId === 'welcomePage') ? 'none' : 'block';
     }
+
     function populateLocations() {
         const locationSelect = document.getElementById('location');
         if (!locationSelect) return;
@@ -321,6 +329,7 @@ document.addEventListener('DOMContentLoaded', function () {
             locationSelect.appendChild(option);
         });
     }
+
     function populateLockers(location) {
         const lockerSelect = document.getElementById('locker');
         if (!lockerSelect) return;
@@ -333,6 +342,7 @@ document.addEventListener('DOMContentLoaded', function () {
             lockerSelect.appendChild(option);
         });
     }
+
     function refreshAdminStats() {
         let inUseCount = 0, totalCount = 0;
         Object.keys(lockerData).forEach(location => {
@@ -349,59 +359,61 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('adminUserId').textContent = appState.user.userID || 'N/A';
         }
     }
+
+    // REGISTER PAGE handler -- attach ONCE!
+    document.getElementById('registerBtn').addEventListener('click', async (event) => {
+        event.preventDefault();
+        const name = document.getElementById('regName').value.trim();
+        const email = document.getElementById('regEmail').value.trim();
+        const phoneNumber = document.getElementById('regPhone').value.trim();
+        const password = document.getElementById('regPassword').value.trim();
+        const errorDiv = document.getElementById('registerError');
+        errorDiv.textContent = '';
+
+        // Validation
+        if (!name || !email || !password) {
+            errorDiv.textContent = "Fill in all required fields.";
+            return;
+        }
+        if (password.length < 8) {
+            errorDiv.textContent = "Password must be at least 8 characters.";
+            return;
+        }
+        if (!(/[A-Za-z]/.test(password) && /\d/.test(password))) {
+            errorDiv.textContent = "Password must contain both letters and numbers.";
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, email, phoneNumber, password })
+            });
+            if (response.ok) {
+                localStorage.clear();
+                sessionStorage.clear();
+                clearRegisterForm();
+                alert("Registration successful! You can now log in.");
+                showPage('loginPage');
+            } else {
+                errorDiv.textContent = "Registration failed: " + (await response.text());
+            }
+        } catch (err) {
+            errorDiv.textContent = "Could not connect to server.";
+        }
+    });
+
+    // Show user registration page when "Register" is clicked from welcome
     document.getElementById('toRegisterBtn').addEventListener('click', function() {
         clearRegisterForm();
         showPage('registerPage');
+    });
 
-
-        document.getElementById('registerBtn').addEventListener('click', async () => {
-    // DO NOT clear the form immediately!
-    const name = document.getElementById('regName').value.trim();
-    const email = document.getElementById('regEmail').value.trim();
-    const phoneNumber = document.getElementById('regPhone').value.trim();
-    const password = document.getElementById('regPassword').value.trim();
-    const errorDiv = document.getElementById('registerError');
-    errorDiv.textContent = '';
-
-    // --- Example password rules, edit as you wish ---
-    if (!name || !email || !password) {
-        errorDiv.textContent = "Fill in all required fields.";
-        return;
-    }
-    if (password.length < 8) {
-        errorDiv.textContent = "Password must be at least 8 characters.";
-        return;
-    }
-    if (!(/[A-Za-z]/.test(password) && /\d/.test(password))) {
-        errorDiv.textContent = "Password must contain both letters and numbers.";
-        return;
-    }
-
-    try {
-        const response = await fetch('/api/register', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, email, phoneNumber, password })
-        });
-        if (response.ok) {
-            // Only clear info on **success**
-            localStorage.clear();
-            sessionStorage.clear();
-            clearRegisterForm();
-            alert("Registration successful! You can now log in.");
-            showPage('loginPage');
-        } else {
-            errorDiv.textContent = "Registration failed: " + (await response.text());
-        }
-    } catch (err) {
-        errorDiv.textContent = "Could not connect to server.";
-    }
-});
-        
-
-        
+    // Others (attached ONCE)
     document.getElementById('adminPortalBtn').addEventListener('click', function() { showPage('adminLoginPage'); });
     document.getElementById('userPortalBtn').addEventListener('click', function() { showPage('loginPage'); });
+
     document.getElementById('adminLoginBtn').addEventListener('click', async function() {
         const email = document.getElementById('adminEmail').value.trim();
         const password = document.getElementById('adminPassword').value.trim();
@@ -422,9 +434,11 @@ document.addEventListener('DOMContentLoaded', function () {
             error.textContent = 'Server connection failed.';
         }
     });
+
     function getSessionKey(email) {
         return "sessionEnd_" + (email || "");
     }
+
     function startTimer(sessionEnd, email) {
         appState.sessionEnd = sessionEnd;
         if (appState.timerInterval) clearInterval(appState.timerInterval);
@@ -444,6 +458,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }, 1000);
         showPage('timerPage');
     }
+
     document.getElementById('loginBtn').addEventListener('click', async function() {
         clearAllData();
         const email = document.getElementById('email').value.trim();
@@ -476,6 +491,7 @@ document.addEventListener('DOMContentLoaded', function () {
             error.textContent = "Server connection failed.";
         }
     });
+
     function calculateTotal(start, end) {
         const hours = Math.max(0, (new Date(end) - new Date(start)) / (1000 * 60 * 60));
         if (hours <= 0.5) return 1.00;
@@ -483,6 +499,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (hours <= 3) return 4.00;
         return 5.00;
     }
+
     function updateReservationSummary() {
         const location = document.getElementById('location').value;
         const locker = document.getElementById('locker').options[document.getElementById('locker').selectedIndex]?.text || '-';
@@ -503,16 +520,20 @@ document.addEventListener('DOMContentLoaded', function () {
             if (el) el.textContent = map[id];
         }
     }
+
+    // --- EVENTS ---
     document.getElementById('location').addEventListener('change', function(e) { populateLockers(e.target.value); updateReservationSummary(); });
     document.getElementById('locker').addEventListener('change', updateReservationSummary);
     document.getElementById('startTime').addEventListener('change', updateReservationSummary);
     document.getElementById('endTime').addEventListener('change', updateReservationSummary);
+
     document.getElementById('reserveBtn').addEventListener('click', function() {
         localStorage.removeItem('reservation'); localStorage.removeItem('payment'); sessionStorage.removeItem('reservation'); sessionStorage.removeItem('payment');
         if (!appState.user) return alert("Please log in first.");
         updateReservationSummary();
         showPage('paymentPage');
     });
+
     document.getElementById('confirmPaymentBtn').addEventListener('click', function() {
         localStorage.removeItem('reservation'); localStorage.removeItem('payment'); sessionStorage.removeItem('reservation'); sessionStorage.removeItem('payment');
         const cardName = document.getElementById('cardName').value.trim();
@@ -542,6 +563,7 @@ document.addEventListener('DOMContentLoaded', function () {
         refreshAdminStats();
         showPage('accessCodePage');
     });
+
     document.getElementById('startSessionBtn').addEventListener('click', function() {
         const endTimeInput = document.getElementById('endTime').value;
         if (!endTimeInput) return alert("Please select an end time first.");
@@ -550,6 +572,7 @@ document.addEventListener('DOMContentLoaded', function () {
         localStorage.setItem(getSessionKey(appState.user.email), endTime);
         startTimer(endTime, appState.user.email);
     });
+
     document.getElementById('extendBtn').addEventListener('click', function() {
         if (appState.sessionEnd) {
             appState.sessionEnd += (30 * 60 * 1000);
@@ -558,6 +581,7 @@ document.addEventListener('DOMContentLoaded', function () {
             setTimeout(() => { document.getElementById('timerMessage').textContent = ""; }, 3000);
         }
     });
+
     document.getElementById('endBtn').addEventListener('click', function() {
         if (confirm("Are you sure you want to end your session?")) {
             if (appState.timerInterval) clearInterval(appState.timerInterval);
@@ -567,6 +591,7 @@ document.addEventListener('DOMContentLoaded', function () {
             showPage('welcomePage');
         }
     });
+
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             const panelId = btn.getAttribute('data-panel');
@@ -574,14 +599,17 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById(panelId).classList.add('active');
         });
     });
+
     document.getElementById('logoutBtn').addEventListener('click', function() {
         if (confirm("Are you sure you want to logout?")) {
             clearAllData();
             showPage('welcomePage');
         }
     });
+
     loadLockers();
 });
 </script>
+    
 </body>
 </html>
