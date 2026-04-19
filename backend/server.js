@@ -167,17 +167,19 @@ app.get('/api/admin/users', async (req, res) => {
     }
 });
 
-// --- Admin: All Reservations and Locker/User Info (for report panel) ---
-app.get('/api/admin/reservations', async (req, res) => {
+// --- Create Reservation and set locker to Occupied ---
+app.post('/api/reservations', async (req, res) => {
+    const { userID, lockerID, startTime, endTime } = req.body;
+    if (!userID || !lockerID || !startTime || !endTime) {
+        return res.status(400).send('Missing reservation field');
+    }
+    const sql = 'INSERT INTO Reservation (userID, lockerID, startTime, endTime, status) VALUES (?, ?, ?, ?, ?)';
     try {
-        const reservations = await db.all(`
-            SELECT Reservation.*, User.name AS userName, Locker.name AS lockerName, Locker.location 
-            FROM Reservation 
-            LEFT JOIN User ON Reservation.userID = User.userID 
-            LEFT JOIN Locker ON Reservation.lockerID = Locker.lockerID
-        `);
-        res.json(reservations);
+        const result = await db.run(sql, [userID, lockerID, startTime, endTime, 'Active']);
+        await db.run('UPDATE Locker SET status = ? WHERE lockerID = ?', ['Occupied', lockerID]);
+        res.status(201).json({ reservationID: result.lastID });
     } catch (error) {
+        console.error("[Reservation Error]", error);
         res.status(500).send('Database error: ' + error.message);
     }
 });
