@@ -83,6 +83,3 @@ module.exports = {
     ),
 };
 
-
-// Close the database connection
-db.close();
