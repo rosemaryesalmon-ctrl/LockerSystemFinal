@@ -55,12 +55,31 @@ db.get(`SELECT COUNT(*) as count FROM Admin WHERE email = ?`, ['admin@uta.edu'],
 });
 
 // Locker table creation
- db.run(`CREATE TABLE IF NOT EXISTS Locker (  
+db.run(`CREATE TABLE IF NOT EXISTS Locker (  
     lockerID INTEGER PRIMARY KEY AUTOINCREMENT,  
     name TEXT,  
     status TEXT,  
     location TEXT  
 );`);
+
+// Seed example lockers for 'Business' and 'Pickard' if table is empty
+db.get(`SELECT COUNT(*) as count FROM Locker`, [], (err, row) => {
+    if (err) {
+        console.error('Error checking for example lockers:', err.message);
+    } else if (row.count === 0) {
+        const stmt = db.prepare(`INSERT INTO Locker (name, status, location) VALUES (?, ?, ?)`);
+        // Business lockers
+        stmt.run('B1', 'Available', 'Business');
+        stmt.run('B2', 'Available', 'Business');
+        stmt.run('B3', 'Available', 'Business');
+        // Pickard lockers
+        stmt.run('P1', 'Available', 'Pickard');
+        stmt.run('P2', 'Available', 'Pickard');
+        stmt.run('P3', 'Available', 'Pickard');
+        stmt.finalize();
+        console.log('Example lockers for Business and Pickard seeded.');
+    }
+});
 
 // Reservation table creation
 db.run(`CREATE TABLE IF NOT EXISTS Reservation (  
@@ -85,7 +104,7 @@ db.run(`CREATE TABLE IF NOT EXISTS Payment (
 );`);
 
 // AccessCode table creation
- db.run(`CREATE TABLE IF NOT EXISTS AccessCode (  
+db.run(`CREATE TABLE IF NOT EXISTS AccessCode (  
     accessCodeID INTEGER PRIMARY KEY AUTOINCREMENT,  
     reservationID INTEGER,  
     code TEXT,  
