@@ -459,37 +459,39 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     document.getElementById('loginBtn').addEventListener('click', async function() {
-        clearAllData();
-        const email = document.getElementById('email').value.trim();
-        const password = document.getElementById('password').value.trim();
-        const error = document.getElementById('loginError');
-        error.textContent = "";
-        try {
-            const response = await fetch('/api/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password })
-            });
-            if (response.ok) {
-                const userData = await response.json();
-                appState.user = { email: userData.email, userID: userData.id };
-                const sessionEndStr = localStorage.getItem(getSessionKey(appState.user.email));
-                if (sessionEndStr) {
-                    const sessionEnd = parseInt(sessionEndStr);
-                    if (sessionEnd > Date.now()) {
-                        startTimer(sessionEnd, appState.user.email);
-                        return;
-                    }
-                    localStorage.removeItem(getSessionKey(appState.user.email));
-                }
-                showPage('reservationPage');
-            } else {
-                error.textContent = "Invalid user credentials.";
+    clearAllData();
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value.trim();
+    const error = document.getElementById('loginError');
+    error.textContent = "";
+    try {
+        const response = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+        if (response.ok) {
+            const userData = await response.json();
+            appState.user = { email: userData.email, userID: userData.id };
+            // --- PATCH: Check backend for active reservation ---
+            const reservationResp = await fetch(`/api/user/current-reservation?userID=${appState.user.userID}`);
+            const reservation = await reservationResp.json();
+            if (reservation && reservation.endTime) {
+                // Resume timer: parse endTime as ms timestamp
+                const endTime = new Date(reservation.endTime).getTime();
+                localStorage.setItem("sessionEnd_" + appState.user.email, endTime);
+                startTimer(endTime, appState.user.email);
+                return;
             }
-        } catch (err) {
-            error.textContent = "Server connection failed.";
+            // If no reservation, show reservation page as normal
+            showPage('reservationPage');
+        } else {
+            error.textContent = "Invalid user credentials.";
         }
-    });
+    } catch (err) {
+        error.textContent = "Server connection failed.";
+    }
+});
 
     function calculateTotal(start, end) {
         const hours = Math.max(0, (new Date(end) - new Date(start)) / (1000 * 60 * 60));
