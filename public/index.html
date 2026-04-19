@@ -278,28 +278,21 @@ document.addEventListener('DOMContentLoaded', function () {
     const appState = {
         user: null, reservation: null, payment: null, accessCode: null, sessionEnd: null, timerInterval: null
     };
-
     function clearAppState() {
-        // Invalidate all in-memory app state except timerInterval (leave timer untouched for the moment)
         Object.keys(appState).forEach(k => { if (k !== 'timerInterval') appState[k] = null; });
     }
-
     function clearAllData() {
-        // Used on login, registration, logout: wipe everything except lockerData
         if (appState.timerInterval) { clearInterval(appState.timerInterval); appState.timerInterval = null; }
         clearAppState();
         localStorage.clear();
         sessionStorage.clear();
     }
-
     function clearRegisterForm() {
         document.getElementById('regName').value = '';
         document.getElementById('regEmail').value = '';
         document.getElementById('regPhone').value = '';
         document.getElementById('regPassword').value = '';
     }
-
-    // --- INITIALIZATION ---
     async function loadLockers() {
         try {
             const response = await fetch('/api/lockers');
@@ -311,13 +304,11 @@ document.addEventListener('DOMContentLoaded', function () {
             console.error("Failed to fetch lockers from database:", err);
         }
     }
-
     function showPage(pageId) {
         document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
         document.getElementById(pageId).classList.add('active');
         document.getElementById('logoutBtn').style.display = (pageId === 'welcomePage') ? 'none' : 'block';
     }
-
     function populateLocations() {
         const locationSelect = document.getElementById('location');
         if (!locationSelect) return;
@@ -329,7 +320,6 @@ document.addEventListener('DOMContentLoaded', function () {
             locationSelect.appendChild(option);
         });
     }
-
     function populateLockers(location) {
         const lockerSelect = document.getElementById('locker');
         if (!lockerSelect) return;
@@ -342,7 +332,6 @@ document.addEventListener('DOMContentLoaded', function () {
             lockerSelect.appendChild(option);
         });
     }
-
     function refreshAdminStats() {
         let inUseCount = 0, totalCount = 0;
         Object.keys(lockerData).forEach(location => {
@@ -359,8 +348,6 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('adminUserId').textContent = appState.user.userID || 'N/A';
         }
     }
-
-    // ---- Button events --- //
     document.getElementById('toRegisterBtn').addEventListener('click', function() {
         clearRegisterForm();
         showPage('registerPage');
@@ -396,7 +383,6 @@ document.addEventListener('DOMContentLoaded', function () {
             errorDiv.textContent = "Could not connect to server.";
         }
     });
-
     document.getElementById('adminPortalBtn').addEventListener('click', function() { showPage('adminLoginPage'); });
     document.getElementById('userPortalBtn').addEventListener('click', function() { showPage('loginPage'); });
     document.getElementById('adminLoginBtn').addEventListener('click', async function() {
@@ -419,9 +405,10 @@ document.addEventListener('DOMContentLoaded', function () {
             error.textContent = 'Server connection failed.';
         }
     });
-
-    // --- SESSION RESUME LOGIC --- //
-    function startTimer(sessionEnd) {
+    function getSessionKey(email) {
+        return "sessionEnd_" + (email || "");
+    }
+    function startTimer(sessionEnd, email) {
         appState.sessionEnd = sessionEnd;
         if (appState.timerInterval) clearInterval(appState.timerInterval);
         appState.timerInterval = setInterval(function() {
@@ -429,7 +416,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (distance <= 0) {
                 clearInterval(appState.timerInterval);
                 document.getElementById('countdown').textContent = "EXPIRED";
-                localStorage.removeItem('sessionEnd');
+                localStorage.removeItem(getSessionKey(email));
                 return;
             }
             const hours = Math.floor(distance / 3600000);
@@ -440,7 +427,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }, 1000);
         showPage('timerPage');
     }
-
     document.getElementById('loginBtn').addEventListener('click', async function() {
         clearAllData();
         const email = document.getElementById('email').value.trim();
@@ -456,15 +442,14 @@ document.addEventListener('DOMContentLoaded', function () {
             if (response.ok) {
                 const userData = await response.json();
                 appState.user = { email: userData.email, userID: userData.id };
-                // --- SESSION-RESUME: check for ongoing timer session in storage ---
-                const sessionEndStr = localStorage.getItem('sessionEnd');
+                const sessionEndStr = localStorage.getItem(getSessionKey(appState.user.email));
                 if (sessionEndStr) {
                     const sessionEnd = parseInt(sessionEndStr);
                     if (sessionEnd > Date.now()) {
-                        startTimer(sessionEnd);
+                        startTimer(sessionEnd, appState.user.email);
                         return;
                     }
-                    localStorage.removeItem('sessionEnd');
+                    localStorage.removeItem(getSessionKey(appState.user.email));
                 }
                 showPage('reservationPage');
             } else {
@@ -474,8 +459,6 @@ document.addEventListener('DOMContentLoaded', function () {
             error.textContent = "Server connection failed.";
         }
     });
-
-    // --- Reservation/Payment/Timer logic ---
     function calculateTotal(start, end) {
         const hours = Math.max(0, (new Date(end) - new Date(start)) / (1000 * 60 * 60));
         if (hours <= 0.5) return 1.00;
@@ -483,7 +466,6 @@ document.addEventListener('DOMContentLoaded', function () {
         if (hours <= 3) return 4.00;
         return 5.00;
     }
-
     function updateReservationSummary() {
         const location = document.getElementById('location').value;
         const locker = document.getElementById('locker').options[document.getElementById('locker').selectedIndex]?.text || '-';
@@ -504,19 +486,16 @@ document.addEventListener('DOMContentLoaded', function () {
             if (el) el.textContent = map[id];
         }
     }
-
     document.getElementById('location').addEventListener('change', function(e) { populateLockers(e.target.value); updateReservationSummary(); });
     document.getElementById('locker').addEventListener('change', updateReservationSummary);
     document.getElementById('startTime').addEventListener('change', updateReservationSummary);
     document.getElementById('endTime').addEventListener('change', updateReservationSummary);
-
     document.getElementById('reserveBtn').addEventListener('click', function() {
         localStorage.removeItem('reservation'); localStorage.removeItem('payment'); sessionStorage.removeItem('reservation'); sessionStorage.removeItem('payment');
         if (!appState.user) return alert("Please log in first.");
         updateReservationSummary();
         showPage('paymentPage');
     });
-
     document.getElementById('confirmPaymentBtn').addEventListener('click', function() {
         localStorage.removeItem('reservation'); localStorage.removeItem('payment'); sessionStorage.removeItem('reservation'); sessionStorage.removeItem('payment');
         const cardName = document.getElementById('cardName').value.trim();
@@ -546,36 +525,31 @@ document.addEventListener('DOMContentLoaded', function () {
         refreshAdminStats();
         showPage('accessCodePage');
     });
-
     document.getElementById('startSessionBtn').addEventListener('click', function() {
         const endTimeInput = document.getElementById('endTime').value;
         if (!endTimeInput) return alert("Please select an end time first.");
         const endTime = new Date(endTimeInput).getTime();
         appState.sessionEnd = endTime;
-        localStorage.setItem('sessionEnd', endTime);
-        startTimer(endTime);
+        localStorage.setItem(getSessionKey(appState.user.email), endTime);
+        startTimer(endTime, appState.user.email);
     });
-
     document.getElementById('extendBtn').addEventListener('click', function() {
         if (appState.sessionEnd) {
             appState.sessionEnd += (30 * 60 * 1000);
-            localStorage.setItem('sessionEnd', appState.sessionEnd); // Update sessionEnd in localStorage
+            localStorage.setItem(getSessionKey(appState.user.email), appState.sessionEnd);
             document.getElementById('timerMessage').textContent = "Added 30 minutes!";
             setTimeout(() => { document.getElementById('timerMessage').textContent = ""; }, 3000);
         }
     });
-
     document.getElementById('endBtn').addEventListener('click', function() {
         if (confirm("Are you sure you want to end your session?")) {
             if (appState.timerInterval) clearInterval(appState.timerInterval);
             appState.timerInterval = null;
             appState.sessionEnd = null;
-            localStorage.removeItem('sessionEnd');
-            // Locker update logic...
+            localStorage.removeItem(getSessionKey(appState.user.email));
             showPage('welcomePage');
         }
     });
-
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             const panelId = btn.getAttribute('data-panel');
@@ -583,16 +557,13 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById(panelId).classList.add('active');
         });
     });
-
     document.getElementById('logoutBtn').addEventListener('click', function() {
         if (confirm("Are you sure you want to logout?")) {
             clearAllData();
             showPage('welcomePage');
         }
     });
-
     loadLockers();
-    // --- Page autostart: if user is logged in and has a session, resume it (optional) ---
 });
 </script>
 </body>
