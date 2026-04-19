@@ -1363,244 +1363,267 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
 <script>
     let lockerData = {};
 
-    const appState = {
-        user: null,
-        reservation: null,
-        payment: null,
-        accessCode: null,
-        sessionEnd: null,
-        timerInterval: null
-    };
+const appState = {
+    user: null,
+    reservation: null,
+    payment: null,
+    accessCode: null,
+    sessionEnd: null,
+    timerInterval: null
+};
 
-    // --- Utility to update locker status in backend database via API ---
-    function updateLockerStatus(lockerID, newStatus) {
-        fetch('/api/locker/updateStatus', {
+// --- UTILITY: Clear registration form fields ---
+function clearRegisterForm() {
+    document.getElementById('regName').value = '';
+    document.getElementById('regEmail').value = '';
+    document.getElementById('regPhone').value = '';
+    document.getElementById('regPassword').value = '';
+}
+
+// --- Utility to update locker status in backend database via API ---
+function updateLockerStatus(lockerID, newStatus) {
+    fetch('/api/locker/updateStatus', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lockerID, status: newStatus })
+    });
+}
+
+// --- INITIALIZATION ---
+async function loadLockers() {
+    try {
+        const response = await fetch('/api/lockers');
+        if (response.ok) {
+            lockerData = await response.json();
+            populateLocations();
+        }
+    } catch (err) {
+        console.error("Failed to fetch lockers from database:", err);
+    }
+}
+
+function showPage(pageId) {
+    document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
+    document.getElementById(pageId).classList.add('active');
+
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (pageId === 'welcomePage') {
+        logoutBtn.style.display = 'none';
+    } else {
+        logoutBtn.style.display = 'block';
+    }
+}
+
+// --- Populate form and admin helpers ---
+function populateLocations() {
+    const locationSelect = document.getElementById('location');
+    if (!locationSelect) return;
+    locationSelect.innerHTML = '<option value="">Select a location</option>';
+    Object.keys(lockerData).forEach(location => {
+        const option = document.createElement('option');
+        option.value = location;
+        option.textContent = location;
+        locationSelect.appendChild(option);
+    });
+}
+
+function populateLockers(location) {
+    const lockerSelect = document.getElementById('locker');
+    if (!lockerSelect) return;
+    lockerSelect.innerHTML = '<option value="">Select a locker</option>';
+    if (!location || !lockerData[location]) return;
+    lockerData[location].forEach(locker => {
+        const option = document.createElement('option');
+        option.value = locker.id;
+        option.textContent = locker.name;
+        lockerSelect.appendChild(option);
+    });
+}
+
+function refreshAdminStats() {
+    let inUseCount = 0;
+    let totalCount = 0;
+    Object.keys(lockerData).forEach(location => {
+        lockerData[location].forEach(locker => {
+            totalCount++;
+            const status = locker.status ? locker.status.toLowerCase() : '';
+            if (status !== 'available' && status !== 'free' && status !== '') {
+                inUseCount++;
+            }
+        });
+    });
+
+    const totalEl = document.getElementById('totalLockers');
+    const inUseEl = document.getElementById('lockersInUse');
+    if (totalEl) totalEl.textContent = totalCount;
+    if (inUseEl) inUseEl.textContent = inUseCount;
+
+    if (appState.user) {
+        const adminEmailEl = document.getElementById('adminUserEmail');
+        const adminIdEl = document.getElementById('adminUserId');
+        if (adminEmailEl) adminEmailEl.textContent = appState.user.email;
+        if (adminIdEl) adminIdEl.textContent = appState.user.userID || 'N/A';
+    }
+}
+
+// --- LOGIN LOGIC ---
+
+// Show registration form when user clicks "Register"
+document.getElementById('toRegisterBtn').addEventListener('click', () => {
+    clearRegisterForm();
+    showPage('registerPage');
+});
+
+// Registration logic (clear storage, form after submit)
+document.getElementById('registerBtn').addEventListener('click', async () => {
+    const name = document.getElementById('regName').value.trim();
+    const email = document.getElementById('regEmail').value.trim();
+    const phoneNumber = document.getElementById('regPhone').value.trim();
+    const password = document.getElementById('regPassword').value.trim();
+    const errorDiv = document.getElementById('registerError');
+    errorDiv.textContent = '';
+
+    if (!name || !email || !password) {
+        errorDiv.textContent = "Fill in all required fields.";
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/register', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ lockerID, status: newStatus })
+            body: JSON.stringify({ name, email, phoneNumber, password })
         });
-    }
-
-    // --- INITIALIZATION ---
-    async function loadLockers() {
-        try {
-            const response = await fetch('/api/lockers');
-            if (response.ok) {
-                lockerData = await response.json();
-                populateLocations();
-            }
-        } catch (err) {
-            console.error("Failed to fetch lockers from database:", err);
-        }
-    }
-
-    function showPage(pageId) {
-        document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
-        document.getElementById(pageId).classList.add('active');
-
-        const logoutBtn = document.getElementById('logoutBtn');
-        if (pageId === 'welcomePage') {
-            logoutBtn.style.display = 'none';
+        if (response.ok) {
+            // Clear all storage on new register
+            localStorage.clear();
+            sessionStorage.clear();
+            clearRegisterForm();
+            alert("Registration successful! You can now log in.");
+            showPage('loginPage');
         } else {
-            logoutBtn.style.display = 'block';
+            errorDiv.textContent = "Registration failed: " + (await response.text());
         }
+    } catch (err) {
+        errorDiv.textContent = "Could not connect to server.";
     }
+});
 
-    function populateLocations() {
-        const locationSelect = document.getElementById('location');
-        if (!locationSelect) return;
-        locationSelect.innerHTML = '<option value="">Select a location</option>';
-        Object.keys(lockerData).forEach(location => {
-            const option = document.createElement('option');
-            option.value = location;
-            option.textContent = location;
-            locationSelect.appendChild(option);
-        });
-    }
+document.getElementById('adminLoginBtn').addEventListener('click', async () => {
+    const email = document.getElementById('adminEmail').value.trim();
+    const password = document.getElementById('adminPassword').value.trim();
+    const error = document.getElementById('adminLoginError');
 
-    function populateLockers(location) {
-        const lockerSelect = document.getElementById('locker');
-        if (!lockerSelect) return;
-        lockerSelect.innerHTML = '<option value="">Select a locker</option>';
-        if (!location || !lockerData[location]) return;
-        lockerData[location].forEach(locker => {
-            const option = document.createElement('option');
-            option.value = locker.id;
-            option.textContent = locker.name;
-            lockerSelect.appendChild(option);
-        });
-    }
+    // Clear state for admin pages if desired
+    // localStorage.clear(); sessionStorage.clear();
 
-    function refreshAdminStats() {
-        let inUseCount = 0;
-        let totalCount = 0;
-
-        console.log("Admin Refresh Data:", lockerData);
-
-        Object.keys(lockerData).forEach(location => {
-            lockerData[location].forEach(locker => {
-                totalCount++;
-
-                const status = locker.status ? locker.status.toLowerCase() : '';
-
-                if (status !== 'available' && status !== 'free' && status !== '') {
-                    inUseCount++;
-                }
-            });
+    try {
+        const response = await fetch('/api/admin/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
         });
 
-        const totalEl = document.getElementById('totalLockers');
-        const inUseEl = document.getElementById('lockersInUse');
-        if (totalEl) totalEl.textContent = totalCount;
-        if (inUseEl) inUseEl.textContent = inUseCount;
-
-        if (appState.user) {
-            const adminEmailEl = document.getElementById('adminUserEmail');
-            const adminIdEl = document.getElementById('adminUserId');
-
-            if (adminEmailEl) adminEmailEl.textContent = appState.user.email;
-            if (adminIdEl) adminIdEl.textContent = appState.user.userID || 'N/A';
+        if (response.ok) {
+            refreshAdminStats();
+            showPage('adminPage');
+        } else {
+            error.textContent = 'Invalid admin credentials.';
         }
+    } catch (err) {
+        error.textContent = 'Server connection failed.';
     }
+});
 
-    // --- LOGIN LOGIC ---
+document.getElementById('loginBtn').addEventListener('click', async () => {
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value.trim();
+    const error = document.getElementById('loginError');
+    error.textContent = "";
 
-    // Show registration form when user clicks "Register"
-    document.getElementById('toRegisterBtn').addEventListener('click', () => showPage('registerPage'));
+    // Clear *everything* so new user starts fresh!
+    localStorage.clear();
+    sessionStorage.clear();
 
-    // Registration logic
-    document.getElementById('registerBtn').addEventListener('click', async () => {
-        const name = document.getElementById('regName').value.trim();
-        const email = document.getElementById('regEmail').value.trim();
-        const phoneNumber = document.getElementById('regPhone').value.trim();
-        const password = document.getElementById('regPassword').value.trim();
-        const errorDiv = document.getElementById('registerError');
-        errorDiv.textContent = '';
-
-        if (!name || !email || !password) {
-            errorDiv.textContent = "Fill in all required fields.";
-            return;
+    try {
+        const response = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+        if (response.ok) {
+            const userData = await response.json();
+            appState.user = { email: userData.email, userID: userData.id };
+            showPage('reservationPage');
+        } else {
+            error.textContent = "Invalid user credentials.";
         }
-
-        try {
-            const response = await fetch('/api/register', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, email, phoneNumber, password })
-            });
-            if (response.ok) {
-                alert("Registration successful! You can now log in.");
-                showPage('loginPage');
-            } else {
-                errorDiv.textContent = "Registration failed: " + (await response.text());
-            }
-        } catch (err) {
-            errorDiv.textContent = "Could not connect to server.";
-        }
-    });
-
-    document.getElementById('adminLoginBtn').addEventListener('click', async () => {
-        const email = document.getElementById('adminEmail').value.trim();
-        const password = document.getElementById('adminPassword').value.trim();
-        const error = document.getElementById('adminLoginError');
-
-        try {
-            const response = await fetch('/api/admin/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password })
-            });
-
-            if (response.ok) {
-                refreshAdminStats();
-                showPage('adminPage');
-            } else {
-                error.textContent = 'Invalid admin credentials.';
-            }
-        } catch (err) {
-            error.textContent = 'Server connection failed.';
-        }
-    });
-
-    document.getElementById('loginBtn').addEventListener('click', async () => {
-        const email = document.getElementById('email').value.trim();
-        const password = document.getElementById('password').value.trim();
-        const error = document.getElementById('loginError');
-        error.textContent = "";
-
-        try {
-            const response = await fetch('/api/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password })
-            });
-            if (response.ok) {
-                const userData = await response.json();
-                appState.user = { email: userData.email, userID: userData.id };
-                showPage('reservationPage');
-            } else {
-                error.textContent = "Invalid user credentials.";
-            }
-        } catch (err) {
-            error.textContent = "Server connection failed.";
-        }
-    });
-
-    // --- RESERVATION & UTILS ---
-
-    function calculateTotal(start, end) {
-        const hours = Math.max(0, (new Date(end) - new Date(start)) / (1000 * 60 * 60));
-        if (hours <= 0.5) return 1.00;
-        if (hours <= 1) return 2.00;
-        if (hours <= 3) return 4.00;
-        return 5.00;
+    } catch (err) {
+        error.textContent = "Server connection failed.";
     }
+});
 
-    function updateReservationSummary() {
-        const location = document.getElementById('location').value;
-        const locker = document.getElementById('locker').options[document.getElementById('locker').selectedIndex]?.text || '-';
-        const start = document.getElementById('startTime').value;
-        const end = document.getElementById('endTime').value;
-        const userEmail = appState.user ? appState.user.email : '-';
-        const total = start && end ? calculateTotal(start, end) : 0;
-        const formattedEnd = end ? new Date(end).toLocaleString() : '-';
+// --- RESERVATION & UTILS ---
 
-        const map = {
-            'summaryUser': userEmail, 'summaryLocation': location || '-', 'summaryLocker': locker,
-            'summaryStart': start ? new Date(start).toLocaleString() : '-', 'summaryEnd': formattedEnd,
-            'summaryTotal': `$${total.toFixed(2)}`, 'paymentUser': userEmail, 'paymentLocation': location || '-',
-            'paymentLocker': locker, 'paymentTotal': `$${total.toFixed(2)}`, 'userDisplay': userEmail,
-            'locationDisplay': location || '-', 'lockerNumberDisplay': locker, 'expirationDisplay': formattedEnd
-        };
+function calculateTotal(start, end) {
+    const hours = Math.max(0, (new Date(end) - new Date(start)) / (1000 * 60 * 60));
+    if (hours <= 0.5) return 1.00;
+    if (hours <= 1) return 2.00;
+    if (hours <= 3) return 4.00;
+    return 5.00;
+}
 
-        for (let id in map) {
-            const el = document.getElementById(id);
-            if (el) el.textContent = map[id];
-        }
+function updateReservationSummary() {
+    const location = document.getElementById('location').value;
+    const locker = document.getElementById('locker').options[document.getElementById('locker').selectedIndex]?.text || '-';
+    const start = document.getElementById('startTime').value;
+    const end = document.getElementById('endTime').value;
+    const userEmail = appState.user ? appState.user.email : '-';
+    const total = start && end ? calculateTotal(start, end) : 0;
+    const formattedEnd = end ? new Date(end).toLocaleString() : '-';
+
+    const map = {
+        'summaryUser': userEmail, 'summaryLocation': location || '-', 'summaryLocker': locker,
+        'summaryStart': start ? new Date(start).toLocaleString() : '-', 'summaryEnd': formattedEnd,
+        'summaryTotal': `$${total.toFixed(2)}`, 'paymentUser': userEmail, 'paymentLocation': location || '-',
+        'paymentLocker': locker, 'paymentTotal': `$${total.toFixed(2)}`, 'userDisplay': userEmail,
+        'locationDisplay': location || '-', 'lockerNumberDisplay': locker, 'expirationDisplay': formattedEnd
+    };
+
+    for (let id in map) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = map[id];
     }
+}
 
-    // --- EVENT LISTENERS ---
+// --- EVENT LISTENERS ---
 
-    document.getElementById('userPortalBtn').addEventListener('click', () => showPage('loginPage'));
-    document.getElementById('adminPortalBtn').addEventListener('click', () => showPage('adminLoginPage'));
+document.getElementById('userPortalBtn').addEventListener('click', () => showPage('loginPage'));
+document.getElementById('adminPortalBtn').addEventListener('click', () => showPage('adminLoginPage'));
 
-    document.getElementById('location').addEventListener('change', (e) => {
-        populateLockers(e.target.value);
-        updateReservationSummary();
-    });
+document.getElementById('location').addEventListener('change', (e) => {
+    populateLockers(e.target.value);
+    updateReservationSummary();
+});
 
-    document.getElementById('locker').addEventListener('change', updateReservationSummary);
-    document.getElementById('startTime').addEventListener('change', updateReservationSummary);
-    document.getElementById('endTime').addEventListener('change', updateReservationSummary);
+document.getElementById('locker').addEventListener('change', updateReservationSummary);
+document.getElementById('startTime').addEventListener('change', updateReservationSummary);
+document.getElementById('endTime').addEventListener('change', updateReservationSummary);
 
-    document.getElementById('reserveBtn').addEventListener('click', () => {
-        if (!appState.user) return alert("Please log in first.");
-        updateReservationSummary();
-        showPage('paymentPage');
-    });
+document.getElementById('reserveBtn').addEventListener('click', () => {
+    // Clear old reservation/payment when starting a new one
+    localStorage.removeItem('reservation');
+    localStorage.removeItem('payment');
+    sessionStorage.removeItem('reservation');
+    sessionStorage.removeItem('payment');
 
-    document.getElementById('confirmPaymentBtn').addEventListener('click', () => {
-    // Clear any prior reservation/payment info before handling payment
+    if (!appState.user) return alert("Please log in first.");
+    updateReservationSummary();
+    showPage('paymentPage');
+});
+
+document.getElementById('confirmPaymentBtn').addEventListener('click', () => {
+    // Always clear reservation/payment storage here too
     localStorage.removeItem('reservation');
     localStorage.removeItem('payment');
     sessionStorage.removeItem('reservation');
@@ -1610,119 +1633,123 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
     if (!cardName) return alert("Please enter card details.");
 
     updateReservationSummary();
-    // ...rest code...
-});
 
-   
-
-        const accessCode = Math.floor(100000 + Math.random() * 900000);
-        const display = document.getElementById('accessCodeDisplay');
-        if (display) display.textContent = accessCode;
-
-        const transactionList = document.getElementById('transactionDetails');
-        if (transactionList) {
-            const timestamp = new Date().toLocaleString();
-            const locName = document.getElementById('location').value;
-            const lockerName = document.getElementById('locker').options[document.getElementById('locker').selectedIndex].text;
-            const total = document.getElementById('summaryTotal').textContent;
-
-            const entry = document.createElement('div');
-            entry.style.borderBottom = "1px solid #eee";
-            entry.style.padding = "10px 0";
-            entry.innerHTML = `<strong>${timestamp}</strong>: ${appState.user.email} reserved <strong>${lockerName}</strong> at <strong>${locName}</strong> for <strong>${total}</strong>.`;
-
-            if (transactionList.textContent.includes("No transaction recorded")) transactionList.innerHTML = '';
-            transactionList.prepend(entry);
-        }
-
-        refreshAdminStats();
-        showPage('accessCodePage');
-    });
-
-    document.getElementById('startSessionBtn').addEventListener('click', () => {
-        const endTimeInput = document.getElementById('endTime').value;
-        if (!endTimeInput) return alert("Please select an end time first.");
-
-        const endTime = new Date(endTimeInput).getTime();
-        appState.sessionEnd = endTime;
-
-        if (appState.timerInterval) clearInterval(appState.timerInterval);
-
-        appState.timerInterval = setInterval(() => {
-            const now = new Date().getTime();
-            const distance = appState.sessionEnd - now;
-
-            if (distance < 0) {
-                clearInterval(appState.timerInterval);
-                document.getElementById('countdown').textContent = "EXPIRED";
-                return;
-            }
-
-            const hours = Math.floor(distance / 3600000);
-            const minutes = Math.floor((distance % 3600000) / 60000);
-            const seconds = Math.floor((distance % 60000) / 1000);
-
-            document.getElementById('countdown').textContent =
-                `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-        }, 1000);
-
-        showPage('timerPage');
-    });
-
-    document.getElementById('extendBtn').addEventListener('click', () => {
-        if (appState.sessionEnd) {
-            appState.sessionEnd += (30 * 60 * 1000);
-            document.getElementById('timerMessage').textContent = "Added 30 minutes!";
-            setTimeout(() => { document.getElementById('timerMessage').textContent = ""; }, 3000);
-        }
-    });
-    document.getElementById('endBtn').addEventListener('click', () => {
-        if (confirm("Are you sure you want to end your session?")) {
-            // 1. CLEAR THE TIMER
-            clearInterval(appState.timerInterval);
-            appState.timerInterval = null;
-            appState.sessionEnd = null; // Clear the expiration time
-
-            const selectedLockerId = document.getElementById('locker').value;
-            Object.keys(lockerData).forEach(location => {
-                lockerData[location].forEach(locker => {
-                    if (locker.id == selectedLockerId) {
-                        locker.status = 'Available';
-                        // --- Updates status in database
-                        updateLockerStatus(locker.id, 'Available');
-                    }
-                });
-            });
-
-            refreshAdminStats();
-
-            showPage('welcomePage');
-        }
-    });
-
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const panelId = btn.getAttribute('data-panel');
-            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-            document.getElementById(panelId).classList.add('active');
+    const selectedLockerId = document.getElementById('locker').value;
+    Object.keys(lockerData).forEach(location => {
+        lockerData[location].forEach(locker => {
+            if (locker.id == selectedLockerId) locker.status = 'Occupied';
         });
     });
 
-    document.getElementById('logoutBtn').addEventListener('click', () => {
-        if (confirm("Are you sure you want to logout?")) {
-            // REMOVED: appState.user = null;
-            // We keep the user data so the Admin can view it in the Reports!
+    const accessCode = Math.floor(100000 + Math.random() * 900000);
+    const display = document.getElementById('accessCodeDisplay');
+    if (display) display.textContent = accessCode;
 
-            if (appState.timerInterval) {
-                clearInterval(appState.timerInterval);
-                appState.timerInterval = null;
-            }
+    const transactionList = document.getElementById('transactionDetails');
+    if (transactionList) {
+        const timestamp = new Date().toLocaleString();
+        const locName = document.getElementById('location').value;
+        const lockerName = document.getElementById('locker').options[document.getElementById('locker').selectedIndex].text;
+        const total = document.getElementById('summaryTotal').textContent;
 
-            showPage('welcomePage');
+        const entry = document.createElement('div');
+        entry.style.borderBottom = "1px solid #eee";
+        entry.style.padding = "10px 0";
+        entry.innerHTML = `<strong>${timestamp}</strong>: ${appState.user.email} reserved <strong>${lockerName}</strong> at <strong>${locName}</strong> for <strong>${total}</strong>.`;
+
+        if (transactionList.textContent.includes("No transaction recorded")) transactionList.innerHTML = '';
+        transactionList.prepend(entry);
+    }
+
+    refreshAdminStats();
+    showPage('accessCodePage');
+});
+
+document.getElementById('startSessionBtn').addEventListener('click', () => {
+    const endTimeInput = document.getElementById('endTime').value;
+    if (!endTimeInput) return alert("Please select an end time first.");
+
+    const endTime = new Date(endTimeInput).getTime();
+    appState.sessionEnd = endTime;
+
+    if (appState.timerInterval) clearInterval(appState.timerInterval);
+
+    appState.timerInterval = setInterval(() => {
+        const now = new Date().getTime();
+        const distance = appState.sessionEnd - now;
+
+        if (distance < 0) {
+            clearInterval(appState.timerInterval);
+            document.getElementById('countdown').textContent = "EXPIRED";
+            return;
         }
-    });
 
-    loadLockers();
+        const hours = Math.floor(distance / 3600000);
+        const minutes = Math.floor((distance % 3600000) / 60000);
+        const seconds = Math.floor((distance % 60000) / 1000);
+
+        document.getElementById('countdown').textContent =
+            `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }, 1000);
+
+    showPage('timerPage');
+});
+
+document.getElementById('extendBtn').addEventListener('click', () => {
+    if (appState.sessionEnd) {
+        appState.sessionEnd += (30 * 60 * 1000);
+        document.getElementById('timerMessage').textContent = "Added 30 minutes!";
+        setTimeout(() => { document.getElementById('timerMessage').textContent = ""; }, 3000);
+    }
+});
+document.getElementById('endBtn').addEventListener('click', () => {
+    if (confirm("Are you sure you want to end your session?")) {
+        // 1. CLEAR THE TIMER
+        clearInterval(appState.timerInterval);
+        appState.timerInterval = null;
+        appState.sessionEnd = null; // Clear the expiration time
+
+        const selectedLockerId = document.getElementById('locker').value;
+        Object.keys(lockerData).forEach(location => {
+            lockerData[location].forEach(locker => {
+                if (locker.id == selectedLockerId) {
+                    locker.status = 'Available';
+                    // --- Updates status in database
+                    updateLockerStatus(locker.id, 'Available');
+                }
+            });
+        });
+
+        refreshAdminStats();
+
+        showPage('welcomePage');
+    }
+});
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const panelId = btn.getAttribute('data-panel');
+        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+        document.getElementById(panelId).classList.add('active');
+    });
+});
+
+// --- LOGOUT: Clear all storage and in-memory state ---
+document.getElementById('logoutBtn').addEventListener('click', () => {
+    if (confirm("Are you sure you want to logout?")) {
+        // RESET ALL DATA (appState, local & session storage)
+        localStorage.clear();
+        sessionStorage.clear();
+        Object.keys(appState).forEach(k => appState[k] = null);
+        if (appState.timerInterval) {
+            clearInterval(appState.timerInterval);
+            appState.timerInterval = null;
+        }
+        showPage('welcomePage');
+    }
+});
+
+loadLockers();
 </script>
 </body>
 </html>
