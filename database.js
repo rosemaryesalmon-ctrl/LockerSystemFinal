@@ -8,6 +8,16 @@ const db = new sqlite3.Database('./LockerSystem.db', (err) => {
     }
 });
 
+// Always run migration for 'status' column if needed
+db.all("PRAGMA table_info(Reservation);", [], (err, rows) => {
+    if (rows && !rows.some(col => col.name === 'status')) {
+        db.run("ALTER TABLE Reservation ADD COLUMN status TEXT DEFAULT 'Active';", err2 => {
+            if (err2) console.error("Failed to add Reservation.status column:", err2.message);
+            else console.log("Reservation.status column added!");
+        });
+    }
+});
+
 // User table creation
 db.run(`CREATE TABLE IF NOT EXISTS User (  
     userID TEXT PRIMARY KEY,  
