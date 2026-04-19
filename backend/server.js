@@ -11,15 +11,28 @@ app.use(express.static(path.join(__dirname, '../public')));
 
 const db = require('../database');
 
-// --- User Registration ---
 app.post('/api/register', async (req, res) => {
     const { name, email, phoneNumber, password } = req.body;
-    const sql = 'INSERT INTO User (userID, name, email, phoneNumber, password, role) VALUES (?, ?, ?, ?, ?, ?)';
+
+    // Basic input validation
+    if (!name || !email || !password) {
+        return res.status(400).send('Name, email, and password required.');
+    }
+
     try {
-        const userID = uuidv4();
+        // Check if email already exists
+        const existing = await db.get('SELECT userID FROM User WHERE email = ?', [email]);
+        if (existing) {
+            return res.status(409).send('User with this email already exists.');
+        }
+
+        // Proceed to registration
+        const userID = require('uuid').v4(); // You already have uuid imported
+        const sql = 'INSERT INTO User (userID, name, email, phoneNumber, password, role) VALUES (?, ?, ?, ?, ?, ?)';
         await db.run(sql, [userID, name, email, phoneNumber, password, 'User']);
-        res.status(201).send('User registered successfully.');
+        res.status(201).json({ message: 'User registered successfully.', userID });
     } catch (error) {
+        console.error("[Register Error]", error);
         res.status(500).send('Database error: ' + error.message);
     }
 });
