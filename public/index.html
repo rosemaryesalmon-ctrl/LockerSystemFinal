@@ -272,6 +272,7 @@
         </div>
     </div>
 </section>
+    
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     let lockerData = {};
@@ -351,38 +352,54 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('toRegisterBtn').addEventListener('click', function() {
         clearRegisterForm();
         showPage('registerPage');
-    });
-    document.getElementById('registerBtn').addEventListener('click', async function() {
-        clearAllData();
-        clearRegisterForm();
-        const name = document.getElementById('regName').value.trim();
-        const email = document.getElementById('regEmail').value.trim();
-        const phoneNumber = document.getElementById('regPhone').value.trim();
-        const password = document.getElementById('regPassword').value.trim();
-        const errorDiv = document.getElementById('registerError');
-        errorDiv.textContent = '';
-        if (!name || !email || !password) {
-            errorDiv.textContent = "Fill in all required fields.";
-            return;
+
+
+        document.getElementById('registerBtn').addEventListener('click', async () => {
+    // DO NOT clear the form immediately!
+    const name = document.getElementById('regName').value.trim();
+    const email = document.getElementById('regEmail').value.trim();
+    const phoneNumber = document.getElementById('regPhone').value.trim();
+    const password = document.getElementById('regPassword').value.trim();
+    const errorDiv = document.getElementById('registerError');
+    errorDiv.textContent = '';
+
+    // --- Example password rules, edit as you wish ---
+    if (!name || !email || !password) {
+        errorDiv.textContent = "Fill in all required fields.";
+        return;
+    }
+    if (password.length < 8) {
+        errorDiv.textContent = "Password must be at least 8 characters.";
+        return;
+    }
+    if (!(/[A-Za-z]/.test(password) && /\d/.test(password))) {
+        errorDiv.textContent = "Password must contain both letters and numbers.";
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, email, phoneNumber, password })
+        });
+        if (response.ok) {
+            // Only clear info on **success**
+            localStorage.clear();
+            sessionStorage.clear();
+            clearRegisterForm();
+            alert("Registration successful! You can now log in.");
+            showPage('loginPage');
+        } else {
+            errorDiv.textContent = "Registration failed: " + (await response.text());
         }
-        try {
-            const response = await fetch('/api/register', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, email, phoneNumber, password })
-            });
-            if (response.ok) {
-                clearAllData();
-                clearRegisterForm();
-                alert("Registration successful! You can now log in.");
-                showPage('loginPage');
-            } else {
-                errorDiv.textContent = "Registration failed: " + (await response.text());
-            }
-        } catch (err) {
-            errorDiv.textContent = "Could not connect to server.";
-        }
-    });
+    } catch (err) {
+        errorDiv.textContent = "Could not connect to server.";
+    }
+});
+        
+
+        
     document.getElementById('adminPortalBtn').addEventListener('click', function() { showPage('adminLoginPage'); });
     document.getElementById('userPortalBtn').addEventListener('click', function() { showPage('loginPage'); });
     document.getElementById('adminLoginBtn').addEventListener('click', async function() {
