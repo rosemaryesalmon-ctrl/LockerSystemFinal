@@ -1600,21 +1600,20 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
     });
 
     document.getElementById('confirmPaymentBtn').addEventListener('click', () => {
-        const cardName = document.getElementById('cardName').value.trim();
-        if (!cardName) return alert("Please enter card details.");
+    // Clear any prior reservation/payment info before handling payment
+    localStorage.removeItem('reservation');
+    localStorage.removeItem('payment');
+    sessionStorage.removeItem('reservation');
+    sessionStorage.removeItem('payment');
 
-        updateReservationSummary();
+    const cardName = document.getElementById('cardName').value.trim();
+    if (!cardName) return alert("Please enter card details.");
 
-        const selectedLockerId = document.getElementById('locker').value;
-        Object.keys(lockerData).forEach(location => {
-            lockerData[location].forEach(locker => {
-                if (locker.id == selectedLockerId) {
-                    locker.status = 'Occupied';
-                    // --- Updates status in database
-                    updateLockerStatus(locker.id, 'Occupied');
-                }
-            });
-        });
+    updateReservationSummary();
+    // ...rest code...
+});
+
+   
 
         const accessCode = Math.floor(100000 + Math.random() * 900000);
         const display = document.getElementById('accessCodeDisplay');
