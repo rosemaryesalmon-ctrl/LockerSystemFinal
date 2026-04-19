@@ -602,6 +602,7 @@
     // Show registration form when user clicks "Register"
 document.getElementById('toRegisterBtn').addEventListener('click', () => showPage('registerPage'));
 
+
 // Registration logic
 document.getElementById('registerBtn').addEventListener('click', async () => {
     const name = document.getElementById('regName').value.trim();
@@ -623,6 +624,10 @@ document.getElementById('registerBtn').addEventListener('click', async () => {
             body: JSON.stringify({ name, email, phoneNumber, password })
         });
         if (response.ok) {
+            // IMPORTANT: clear any old info!
+            localStorage.clear();
+            sessionStorage.clear();
+            // Optionally, store info for later (if you auto-login new users)
             alert("Registration successful! You can now log in.");
             showPage('loginPage');
         } else {
@@ -632,6 +637,8 @@ document.getElementById('registerBtn').addEventListener('click', async () => {
         errorDiv.textContent = "Could not connect to server.";
     }
 });
+
+    
 
     document.getElementById('adminLoginBtn').addEventListener('click', async () => {
         const email = document.getElementById('adminEmail').value.trim();
