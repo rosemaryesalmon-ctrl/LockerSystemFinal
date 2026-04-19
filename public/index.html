@@ -663,6 +663,8 @@ document.getElementById('registerBtn').addEventListener('click', async () => {
         }
     });
 
+
+
     document.getElementById('loginBtn').addEventListener('click', async () => {
     const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value.trim();
@@ -676,8 +678,13 @@ document.getElementById('registerBtn').addEventListener('click', async () => {
             body: JSON.stringify({ email, password })
         });
         if (response.ok) {
+            // Clear all previous info!
+            localStorage.clear();
+            sessionStorage.clear();
+            // Save the current user if you want
             const userData = await response.json();
             appState.user = { email: userData.email, userID: userData.id };
+            // You could optionally save to localStorage here!
             showPage('reservationPage');
         } else {
             error.textContent = "Invalid user credentials.";
@@ -686,6 +693,8 @@ document.getElementById('registerBtn').addEventListener('click', async () => {
         error.textContent = "Server connection failed.";
     }
 });
+
+
 
     // --- RESERVATION & UTILS ---
 
@@ -845,16 +854,19 @@ document.getElementById('registerBtn').addEventListener('click', async () => {
         });
     });
 
-
-    document.getElementById('logoutBtn').addEventListener('click', () => {
+document.getElementById('logoutBtn').addEventListener('click', () => {
     if (confirm("Are you sure you want to logout?")) {
-        // REMOVED: appState.user = null;
-        // We keep the user data so the Admin can view it in the Reports!
+        // FULLY Clear all state!
+        localStorage.clear();
+        sessionStorage.clear();
 
         if (appState.timerInterval) {
             clearInterval(appState.timerInterval);
             appState.timerInterval = null;
         }
+
+        // Clear all in-memory app state
+        Object.keys(appState).forEach(k => appState[k] = null);
 
         showPage('welcomePage');
     }
