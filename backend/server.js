@@ -56,6 +56,28 @@ app.post('/api/admin/login', async (req, res) => {
     }
 });
 
+// --- Get current active reservation for a user (by userID) ---
+app.get('/api/user/current-reservation', async (req, res) => {
+    const { userID } = req.query;
+    if (!userID) return res.status(400).send('userID required');
+    try {
+        // Find reservation where endTime is in future and status is Active or null (null for legacy rows)
+        const now = new Date().toISOString();
+        const reservation = await db.get(
+            `SELECT * FROM Reservation 
+             WHERE userID = ? 
+             AND startTime <= ? 
+             AND endTime >= ? 
+             AND (status IS NULL OR status = 'Active')
+             ORDER BY endTime DESC LIMIT 1`,
+            [userID, now, now]
+        );
+        res.json(reservation || {});
+    } catch (error) {
+        res.status(500).send('Database error: ' + error.message);
+    }
+});
+
 // --- Get All Lockers (grouped by location for frontend compatibility) ---
 app.get('/api/lockers', async (req, res) => {
     try {
