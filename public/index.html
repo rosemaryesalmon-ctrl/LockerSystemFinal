@@ -650,15 +650,11 @@ document.getElementById('adminLoginBtn').addEventListener('click', async () => {
     }
 });
 
-document.getElementById('loginBtn').addEventListener('click', async () => {
+    document.getElementById('loginBtn').addEventListener('click', async () => {
     const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value.trim();
     const error = document.getElementById('loginError');
     error.textContent = "";
-
-    // Clear *everything* so new user starts fresh!
-    localStorage.clear();
-    sessionStorage.clear();
 
     try {
         const response = await fetch('/api/login', {
@@ -669,6 +665,38 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
         if (response.ok) {
             const userData = await response.json();
             appState.user = { email: userData.email, userID: userData.id };
+
+            // --------- AUTO-RESUME TIMER LOGIC ---------
+            const sessionEndStr = localStorage.getItem('sessionEnd');
+            if (sessionEndStr) {
+                const sessionEnd = parseInt(sessionEndStr);
+                const now = Date.now();
+                if (sessionEnd > now) {
+                    appState.sessionEnd = sessionEnd;
+                    if (appState.timerInterval) clearInterval(appState.timerInterval);
+                    appState.timerInterval = setInterval(() => {
+                        const distance = appState.sessionEnd - Date.now();
+
+                        if (distance < 0) {
+                            clearInterval(appState.timerInterval);
+                            document.getElementById('countdown').textContent = "EXPIRED";
+                            localStorage.removeItem('sessionEnd');
+                            return;
+                        }
+                        const hours = Math.floor(distance / 3600000);
+                        const minutes = Math.floor((distance % 3600000) / 60000);
+                        const seconds = Math.floor((distance % 60000) / 1000);
+                        document.getElementById('countdown').textContent =
+                            `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                    }, 1000);
+                    showPage('timerPage');
+                    return;
+                } else {
+                    // Clean up if expired
+                    localStorage.removeItem('sessionEnd');
+                }
+            }
+            // Otherwise show reservation page as normal
             showPage('reservationPage');
         } else {
             error.textContent = "Invalid user credentials.";
@@ -677,6 +705,7 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
         error.textContent = "Server connection failed.";
     }
 });
+
 
 // --- RESERVATION & UTILS ---
 
@@ -780,12 +809,13 @@ document.getElementById('confirmPaymentBtn').addEventListener('click', () => {
     showPage('accessCodePage');
 });
 
-document.getElementById('startSessionBtn').addEventListener('click', () => {
+    document.getElementById('startSessionBtn').addEventListener('click', () => {
     const endTimeInput = document.getElementById('endTime').value;
     if (!endTimeInput) return alert("Please select an end time first.");
 
     const endTime = new Date(endTimeInput).getTime();
     appState.sessionEnd = endTime;
+    localStorage.setItem('sessionEnd', endTime); // ADD THIS LINE
 
     if (appState.timerInterval) clearInterval(appState.timerInterval);
 
@@ -796,6 +826,7 @@ document.getElementById('startSessionBtn').addEventListener('click', () => {
         if (distance < 0) {
             clearInterval(appState.timerInterval);
             document.getElementById('countdown').textContent = "EXPIRED";
+            localStorage.removeItem('sessionEnd'); // Remove when expired
             return;
         }
 
@@ -817,20 +848,19 @@ document.getElementById('extendBtn').addEventListener('click', () => {
         setTimeout(() => { document.getElementById('timerMessage').textContent = ""; }, 3000);
     }
 });
+    
 document.getElementById('endBtn').addEventListener('click', () => {
     if (confirm("Are you sure you want to end your session?")) {
-        // 1. CLEAR THE TIMER
         clearInterval(appState.timerInterval);
         appState.timerInterval = null;
-        appState.sessionEnd = null; // Clear the expiration time
+        appState.sessionEnd = null;
+        localStorage.removeItem('sessionEnd'); // <-- REMOVE FROM LOCALSTORAGE
 
         const selectedLockerId = document.getElementById('locker').value;
         Object.keys(lockerData).forEach(location => {
             lockerData[location].forEach(locker => {
                 if (locker.id == selectedLockerId) {
                     locker.status = 'Available';
-                    // --- Updates status in database
-                    updateLockerStatus(locker.id, 'Available');
                 }
             });
         });
@@ -840,7 +870,7 @@ document.getElementById('endBtn').addEventListener('click', () => {
         showPage('welcomePage');
     }
 });
-
+    
 document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         const panelId = btn.getAttribute('data-panel');
