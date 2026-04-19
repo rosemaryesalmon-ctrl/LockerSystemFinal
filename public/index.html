@@ -669,7 +669,42 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
         if (response.ok) {
             const userData = await response.json();
             appState.user = { email: userData.email, userID: userData.id };
-            showPage('reservationPage');
+             const sessionEndStr = localStorage.getItem('sessionEnd');
+        if (sessionEndStr) {
+            const sessionEnd = parseInt(sessionEndStr);
+            const now = Date.now();
+
+            if (sessionEnd > now) {
+                appState.sessionEnd = sessionEnd;
+                // Resume countdown timer!
+                if (appState.timerInterval) clearInterval(appState.timerInterval);
+                appState.timerInterval = setInterval(() => {
+                    const distance = appState.sessionEnd - Date.now();
+
+                    if (distance < 0) {
+                        clearInterval(appState.timerInterval);
+                        document.getElementById('countdown').textContent = "EXPIRED";
+                        localStorage.removeItem('sessionEnd');
+                        return;
+                    }
+
+                    const hours = Math.floor(distance / 3600000);
+                    const minutes = Math.floor((distance % 3600000) / 60000);
+                    const seconds = Math.floor((distance % 60000) / 1000);
+
+                    document.getElementById('countdown').textContent =
+                        `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                }, 1000);
+
+                showPage('timerPage');
+                return; // Do not show reservation page
+            } else {
+                // Session expired, cleanup
+                localStorage.removeItem('sessionEnd');
+            }
+        }
+        // No session, go to reservation like normal
+        showPage('reservationPage');        
         } else {
             error.textContent = "Invalid user credentials.";
         }
@@ -787,6 +822,8 @@ document.getElementById('startSessionBtn').addEventListener('click', () => {
     const endTime = new Date(endTimeInput).getTime();
     appState.sessionEnd = endTime;
 
+    localStorage.setItem('sessionEnd', endTime);
+
     if (appState.timerInterval) clearInterval(appState.timerInterval);
 
     appState.timerInterval = setInterval(() => {
@@ -796,6 +833,7 @@ document.getElementById('startSessionBtn').addEventListener('click', () => {
         if (distance < 0) {
             clearInterval(appState.timerInterval);
             document.getElementById('countdown').textContent = "EXPIRED";
+            localStorage.removeItem('sessionEnd');
             return;
         }
 
@@ -822,7 +860,8 @@ document.getElementById('endBtn').addEventListener('click', () => {
         // 1. CLEAR THE TIMER
         clearInterval(appState.timerInterval);
         appState.timerInterval = null;
-        appState.sessionEnd = null; // Clear the expiration time
+        appState.sessionEnd = null;
+        localStorage.removeItem('sessionEnd');
 
         const selectedLockerId = document.getElementById('locker').value;
         Object.keys(lockerData).forEach(location => {
