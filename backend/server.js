@@ -11,28 +11,15 @@ app.use(express.static(path.join(__dirname, '../public')));
 
 const db = require('../database');
 
+// --- User Registration ---
 app.post('/api/register', async (req, res) => {
     const { name, email, phoneNumber, password } = req.body;
-
-    // Basic input validation
-    if (!name || !email || !password) {
-        return res.status(400).send('Name, email, and password required.');
-    }
-
+    const sql = 'INSERT INTO User (userID, name, email, phoneNumber, password, role) VALUES (?, ?, ?, ?, ?, ?)';
     try {
-        // Check if email already exists
-        const existing = await db.get('SELECT userID FROM User WHERE email = ?', [email]);
-        if (existing) {
-            return res.status(409).send('User with this email already exists.');
-        }
-
-        // Proceed to registration
-        const userID = require('uuid').v4(); // You already have uuid imported
-        const sql = 'INSERT INTO User (userID, name, email, phoneNumber, password, role) VALUES (?, ?, ?, ?, ?, ?)';
+        const userID = uuidv4();
         await db.run(sql, [userID, name, email, phoneNumber, password, 'User']);
-        res.status(201).json({ message: 'User registered successfully.', userID });
+        res.status(201).send('User registered successfully.');
     } catch (error) {
-        console.error("[Register Error]", error);
         res.status(500).send('Database error: ' + error.message);
     }
 });
@@ -180,19 +167,17 @@ app.get('/api/admin/users', async (req, res) => {
     }
 });
 
-// --- Create Reservation and set locker to Occupied ---
-app.post('/api/reservations', async (req, res) => {
-    const { userID, lockerID, startTime, endTime } = req.body;
-    if (!userID || !lockerID || !startTime || !endTime) {
-        return res.status(400).send('Missing reservation field');
-    }
-    const sql = 'INSERT INTO Reservation (userID, lockerID, startTime, endTime, status) VALUES (?, ?, ?, ?, ?)';
+// --- Admin: All Reservations and Locker/User Info (for report panel) ---
+app.get('/api/admin/reservations', async (req, res) => {
     try {
-        const result = await db.run(sql, [userID, lockerID, startTime, endTime, 'Active']);
-        await db.run('UPDATE Locker SET status = ? WHERE lockerID = ?', ['Occupied', lockerID]);
-        res.status(201).json({ reservationID: result.lastID });
+        const reservations = await db.all(`
+            SELECT Reservation.*, User.name AS userName, Locker.name AS lockerName, Locker.location 
+            FROM Reservation 
+            LEFT JOIN User ON Reservation.userID = User.userID 
+            LEFT JOIN Locker ON Reservation.lockerID = Locker.lockerID
+        `);
+        res.json(reservations);
     } catch (error) {
-        console.error("[Reservation Error]", error);
         res.status(500).send('Database error: ' + error.message);
     }
 });
