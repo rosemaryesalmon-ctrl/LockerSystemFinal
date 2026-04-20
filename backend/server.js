@@ -101,10 +101,9 @@ app.get('/api/lockers', async (req, res) => {
 // --- Create Reservation and set locker to Occupied ---
 app.post('/api/reservations', async (req, res) => {
     const { userID, lockerID, startTime, endTime } = req.body;
-    const sql = 'INSERT INTO Reservation (userID, lockerID, startTime, endTime) VALUES (?, ?, ?, ?)';
+    const sql = 'INSERT INTO Reservation (userID, lockerID, startTime, endTime, status) VALUES (?, ?, ?, ?, ?)';
     try {
-        // SQLite autoincrements reservationID, so no need for uuid
-        const result = await db.run(sql, [userID, lockerID, startTime, endTime]);
+        const result = await db.run(sql, [userID, lockerID, startTime, endTime, 'Active']);
         await db.run('UPDATE Locker SET status = ? WHERE lockerID = ?', ['Occupied', lockerID]);
         res.status(201).json({ reservationID: result.lastID });
     } catch (error) {
