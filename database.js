@@ -137,4 +137,3 @@ module.exports = {
         db.all(...args, (err, rows) => err ? reject(err) : resolve(rows))
     ),
 };
-
